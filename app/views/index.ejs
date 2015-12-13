@@ -1,0 +1,25 @@
+<h1>Index</h1>
+
+<h3>Users</h3>
+<ul>
+    <% users.forEach(function(user) { %>
+        <li <%= "data-username=" + user.username %>>
+           <button onclick="challengePlayer(<%= user.username %>)">Challenge <%= user.username %></button>
+        </li>
+    <% }); %>
+</ul>
+
+<div id="chat-container">
+
+   <ul id="messages">
+   </ul>
+
+   <form id="message-form" action="">
+      <input id="message" name="message" type="text" placeholder="Type something...">
+      <button id="send-but">Send</button>
+   </form>
+
+</div>
+
+<!-- Initialize socket here -->
+<%- include app %>

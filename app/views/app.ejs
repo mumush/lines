@@ -1,0 +1,45 @@
+<script>
+
+window.onload = function() {
+
+   console.log('In app.ejs');
+
+   // **** Get Client Cookies Sent From Server ****
+
+   var cookieToken = docCookies.getItem('linesApp');
+   var cookieUsername = docCookies.getItem('linesAppUser');
+
+   console.log('Client Token: ' + cookieToken);
+   console.log('Client Username: ' + cookieUsername);
+
+
+   // **** Initialize Logged in Users ****
+
+   var onlineUsers = <%- JSON.stringify(users) %>;
+
+
+
+   // **** Initialize Socket IO ****
+
+   var socket = io(); // Default to connect to host that serves page
+
+
+
+   // **** Start Socket IO Events ****
+
+   // Immediately emit that user is online
+   socket.emit('go online', {username: cookieUsername});
+
+   // When a new user goes online
+   socket.on('user online', function(username) {
+      console.log(username + ' is online.');
+   });
+
+   // When a new user goes online
+   socket.on('user offline', function(username) {
+      console.log(username + ' is offline.');
+   });
+
+};
+
+</script>
