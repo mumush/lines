@@ -151,7 +151,11 @@ app.post('/login', authenticate, function(req, res) {
             console.log('Password does not match username.');
             res.json({ success: false, message: 'Incorrect username or password.' });
          }
-         else { // Password is correct, create the token
+         else if(user.isOnline) { // This user is already online somewhere else, don't let someone else login again (new socket)
+            console.log('User is already online.');
+            res.json({ success: false, message: 'User is already logged in.' });
+         }
+         else { // Password is correct, and they're not already online (trying to login from multiple windows/tabs)
 
             var token = jsonWebToken.sign(user, app.get('tokenSecret'), { // Get value of app setting variable named 'tokenSecret' above
                expiresIn: 86400 // Expires in 24 hours
@@ -258,7 +262,7 @@ io.on('connection', function(socket) {
 
             console.log('Both users found and are online.');
 
-            // Join a separate game room (different socket namespace)
+            // Make a separate game room (different socket namespace)
             var gameRoomName = data.challengee + " " + data.challenger;
 
             console.log('Creating Room Named: ' + gameRoomName);

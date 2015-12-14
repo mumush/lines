@@ -20,3 +20,7 @@
 .not-my-message {
    background: grey;
 }
+
+.gameboard-container {
+   text-align: center;
+}
