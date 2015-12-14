@@ -1,6 +1,6 @@
 <script>
 
-window.onload = function() {
+window.onload = function(challengeUser) {
 
    console.log('In app.ejs');
 
@@ -12,17 +12,17 @@ window.onload = function() {
    console.log('Client Token: ' + cookieToken);
    console.log('Client Username: ' + cookieUsername);
 
-
-   // **** Initialize Logged in Users ****
-
-   var onlineUsers = <%- JSON.stringify(users) %>;
-
-
-
    // **** Initialize Socket IO ****
 
    var socket = io(); // Default to connect to host that serves page
 
+
+   // **** Initialize Online Users & Chat ****
+
+   var onlineUsers = <%- JSON.stringify(users) %>; // 'users' passed in via EJS
+
+   initOnlineUsers(onlineUsers);
+   initChat();
 
 
    // **** Start Socket IO Events ****
@@ -32,13 +32,65 @@ window.onload = function() {
 
    // When a new user goes online
    socket.on('user online', function(username) {
+      addOnlineUser(username);
       console.log(username + ' is online.');
    });
 
    // When a new user goes online
    socket.on('user offline', function(username) {
-      console.log(username + ' is offline.');
+      removeOnlineUser(username);
+      console.log(username + ' went offline.');
    });
+
+
+   // **** DOM Methods ****
+
+   function initOnlineUsers(users) {
+      for( var i=0; i<users.length; i++ ) {
+         addOnlineUser(users[i].username);
+      }
+   }
+
+   function initChat() {
+      $('#compose-message-form').on('submit', function(){ sendMessage(event) });
+   }
+
+   function addOnlineUser(username) {
+
+      var newUserItem = $('<li>');
+      newUserItem.addClass('online-user');
+      newUserItem.attr('id', ('user-' + username));
+      newUserItem.text(username);
+
+      var challengeUserBut = $('<button>');
+      challengeUserBut.on('click', function(){ challengeUser(username); });
+      challengeUserBut.text('Challenge');
+
+      newUserItem.append(challengeUserBut);
+
+      $('#online-users-list').prepend(newUserItem);
+   }
+
+   function removeOnlineUser(username) {
+      var attrSelector = "#user-" + username;
+      var userListItem = $(attrSelector);
+      userListItem.remove();
+   }
+
+
+   // **** Onclick/Onsubmit Methods ****
+
+   function challengeUser(username) {
+      console.log('Challenge User: ' + username);
+   }
+
+   function sendMessage(event) {
+      event.preventDefault();
+      var message = $('#message-input').val();
+      console.log('Send Message: ' + message);
+   }
+
+
 
 };
 

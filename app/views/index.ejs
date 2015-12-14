@@ -1,22 +1,19 @@
 <h1>Index</h1>
 
 <h3>Users</h3>
-<ul>
-    <% users.forEach(function(user) { %>
-        <li <%= "data-username=" + user.username %>>
-           <button onclick="challengePlayer(<%= user.username %>)">Challenge <%= user.username %></button>
-        </li>
-    <% }); %>
+<ul id="online-users-list">
 </ul>
 
-<div id="chat-container">
+<div class="chat-container">
+
+   <h3>Public Chat</h3>
 
    <ul id="messages">
    </ul>
 
-   <form id="message-form" action="">
-      <input id="message" name="message" type="text" placeholder="Type something...">
-      <button id="send-but">Send</button>
+   <form id="compose-message-form">
+      <input id="message-input" name="message" type="text" placeholder="Type something...">
+      <button id="send-message-but" type="submit">Send</button>
    </form>
 
 </div>
