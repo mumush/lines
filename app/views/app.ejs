@@ -2,8 +2,6 @@
 
 window.onload = function(challengeUser) {
 
-   console.log('In app.ejs');
-
    // **** Get Client Cookies Sent From Server ****
 
    var cookieToken = docCookies.getItem('linesApp');
@@ -21,8 +19,7 @@ window.onload = function(challengeUser) {
 
    var onlineUsers = <%- JSON.stringify(users) %>; // 'users' passed in via EJS
 
-   initOnlineUsers(onlineUsers);
-   initChat();
+   init(onlineUsers);
 
 
    // **** Start Socket IO Events ****
@@ -42,17 +39,41 @@ window.onload = function(challengeUser) {
       console.log(username + ' went offline.');
    });
 
+   // When a user has sent a chat message
+   socket.on('new chat message', function(message) {
+      console.log(message.sender + ' says: ' + message.body);
+      appendChatMessage(message);
+   });
+
+   // When another user challenges you to a game
+   socket.on('challenge user', function(challenger) {
+      console.log('Received a challege from ' + challenger);
+
+      // Show a modal message allowing user to accept or deny a challenge
+      displayChallengeModal(challenger);
+   });
+
+
+   // **** Socket IO Game Events ****
+
+   socket.on('initialize game', function(data) {
+      console.log('Initializing game...');
+   });
+
+
 
    // **** DOM Methods ****
 
-   function initOnlineUsers(users) {
+   function init(users) {
+
+      // Add all users that are currently online to the list of users
       for( var i=0; i<users.length; i++ ) {
          addOnlineUser(users[i].username);
       }
-   }
 
-   function initChat() {
+      // Set the submit handler for the form
       $('#compose-message-form').on('submit', function(){ sendMessage(event) });
+
    }
 
    function addOnlineUser(username) {
@@ -63,7 +84,7 @@ window.onload = function(challengeUser) {
       newUserItem.text(username);
 
       var challengeUserBut = $('<button>');
-      challengeUserBut.on('click', function(){ challengeUser(username); });
+      challengeUserBut.on('click', function(){ challengeUser(username, challengeUserBut); });
       challengeUserBut.text('Challenge');
 
       newUserItem.append(challengeUserBut);
@@ -77,17 +98,71 @@ window.onload = function(challengeUser) {
       userListItem.remove();
    }
 
+   function appendChatMessage(message) {
+
+      // This is either our message, or someone else's
+
+      if( message.sender === cookieUsername ) { // It's our message, make it blue
+         var messageClass = "my-message";
+      }
+      else { // it's not ours, make it grey
+         var messageClass = "not-my-message";
+      }
+
+      $('#messages-list').append($("<li class='message " + messageClass + "'><span class='sender'>" + message.sender + "</span><span class='body'>" + message.body + "</span></li>"));
+
+   }
+
+   function displayChallengeModal(challenger) {
+
+      var challengeModal = "<div id='challenge-modal'><p><span id='challenger-username'>" + challenger + "</span> wants to play!</p>";
+      challengeModal += "<div class='action-container'><button id='accept-challenge-but'>Accept</button><button id='reject-challenge-but'>Reject</button></div></div>";
+
+      $(document.body).prepend(challengeModal);
+
+      $('#accept-challenge-but').on('click', acceptChallenge);
+      $('#reject-challenge-but').on('click', rejectChallenge);
+
+   }
+
 
    // **** Onclick/Onsubmit Methods ****
 
-   function challengeUser(username) {
-      console.log('Challenge User: ' + username);
+   function acceptChallenge() {
+
+      var challenger = $('#challenger-username').text();
+      console.log('Accepted challenge from: ' + challenger);
+
+      socket.emit('challenge accepted', {challenger: challenger, challengee: cookieUsername});
+
+      $('#challenge-modal').remove();
+
+   }
+
+   function rejectChallenge() {
+
+      var challenger = $('#challenger-username').text();
+      console.log('Rejected challenge from: ' + challenger);
+
+      // Consider sending a modal to the user if there's time
+      //socket.emit('challenge rejected', {challenger: challenger, challengee: cookieUsername});
+
+      $('#challenge-modal').remove();
+
+   }
+
+   function challengeUser(opponentUsername, challengeButton) {
+      console.log('Challenge User: ' + opponentUsername);
+      socket.emit('challenge request', {sender: cookieUsername, opponent: opponentUsername});
    }
 
    function sendMessage(event) {
       event.preventDefault();
       var message = $('#message-input').val();
       console.log('Send Message: ' + message);
+
+      // ***** DO VALIDATION CHECKS HERE *****
+      socket.emit('send chat message', {sender: cookieUsername, body: message});
    }
 
 

@@ -1,0 +1,22 @@
+* {
+   margin: 0;
+   padding: 0;
+}
+
+#challenge-modal {
+
+   background: yellow;
+
+}
+
+.message {
+
+}
+
+.my-message {
+   background: blue;
+}
+
+.not-my-message {
+   background: grey;
+}

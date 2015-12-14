@@ -218,6 +218,65 @@ io.on('connection', function(socket) {
 
    });
 
+
+   // SEND CHAT MESSAGE EVENT -> client sent a message, emit to all sockets
+   socket.on('send chat message', function(data) {
+      console.log(data.sender + ' says: ' + data.body);
+      // *** DO VALIDATION HERE ***
+      io.emit('new chat message', {sender: data.sender, body: data.body});
+
+   });
+
+
+   // CHALLENGE REQUEST EVENT
+   socket.on('challenge request', function(data) {
+      console.log(data.sender + ' requests to challenge ' + data.opponent);
+
+      User.findOne( {username: data.opponent}, function(err, user) {
+
+         if(!err && user) { // No error occurred and the user exists
+            var opponentSocket = user.socketID;
+            console.log('Sending Challenge To: ' + user.username + ' @ ' + user.socketID);
+            socket.broadcast.to(opponentSocket).emit('challenge user', data.sender);
+         }
+
+      });
+
+   });
+
+
+   // CHALLENGE ACCEPTED EVENT
+   socket.on('challenge accepted', function(data) {
+
+      console.log(data.challengee + ' accepted the challenge from ' + data.challenger);
+
+      // Make sure both users are online, and not in games
+      User.find( { $or:[{'username': data.challenger}, {'username': data.challengee}] }, function(err, users) {
+
+         // No error occurred and we found both users...Then make sure that both are online
+         if( (!err && users.length == 2) && (users[0].isOnline === true && users[1].isOnline === true) ) {
+
+            console.log('Both users found and are online.');
+
+            // Join a separate game room (different socket namespace)
+            var gameRoomName = data.challengee + " " + data.challenger;
+
+            console.log('Creating Room Named: ' + gameRoomName);
+
+            // Join both sockets to the new room
+            io.sockets.connected[users[0].socketID].join(gameRoomName);
+            io.sockets.connected[users[1].socketID].join(gameRoomName);
+
+            io.to(gameRoomName).emit('initialize game', {room: gameRoomName, currentTurn: users[0].username});
+
+         }
+
+      });
+
+
+   });
+
+
    // DISCONNECT EVENT
    socket.on('disconnect', function() {
       console.log('A user disconnected');
