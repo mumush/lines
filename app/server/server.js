@@ -13,6 +13,7 @@ var jsonWebToken = require('jsonwebtoken');
 var mongoose = require('mongoose');
 var config = require('./../../config');
 var User = require('./models/user');
+var Game = require('./models/game');
 
 var port = process.env.PORT || 8080;
 mongoose.connect(config.database);
@@ -262,21 +263,113 @@ io.on('connection', function(socket) {
 
             console.log('Both users found and are online.');
 
-            // Make a separate game room (different socket namespace)
-            var gameRoomName = data.challengee + " " + data.challenger;
+            // Create a new game in the
+            var newGame = new Game({
+               challenger: data.challenger,
+               challengee: data.challengee
+            });
 
-            console.log('Creating Room Named: ' + gameRoomName);
+            // Save the new user
+            newGame.save(function(err, game) {
 
-            // Join both sockets to the new room
-            io.sockets.connected[users[0].socketID].join(gameRoomName);
-            io.sockets.connected[users[1].socketID].join(gameRoomName);
+               if(!err) { // If there wasn't an error creating the game in the back, emit to both users that we can initialize the game
 
-            io.to(gameRoomName).emit('initialize game', {room: gameRoomName, currentTurn: users[0].username});
+                  console.log("Created new game with ID: " + game._id);
+
+                  // Make a separate game room (different socket namespace)
+                  var gameRoomName = game.challenger + " " + game.challengee;
+
+                  console.log('Creating Room Named: ' + gameRoomName);
+
+                  // Join both sockets to the new room by their retrieved id's
+                  io.sockets.connected[users[0].socketID].join(gameRoomName);
+                  io.sockets.connected[users[1].socketID].join(gameRoomName);
+
+                  // Emit the message only to the new socket room
+                  io.to(gameRoomName).emit('initialize game', {gameID: game._id, gameRoom: gameRoomName, firstTurn: users[0].username, players: [users[0].username, users[1].username]});
+
+               }
+
+            });
 
          }
 
       });
 
+   });
+
+   // START GAME EVENT
+   socket.on('start game', function() {
+
+      console.log('Preparing to start game...');
+
+      // Emit only to the sending user -> CONSIDER sending this inside of the room
+      socket.emit('my turn', {opponentsMove: null});
+
+   });
+
+   // CHECK MOVE EVENT
+   socket.on('check move', function(move) {
+
+      console.log('Move made by: ' + move.mover);
+      console.log('Check move for game: ' + move.gameID);
+      console.log('Check move at: x1: ' + move.x1 + ' x2: ' + move.x2 + ' y1: ' + move.y1 + ' y2: ' + move.y2);
+
+      // Attempt to find a move in the game (via supplied gameID)
+      // If it doesn't exist, add it and emit a valid move - If it does, emit an invalid move to the sender
+      Game.findOne({ _id: move.gameID, 'moves.coordinates': {x1: move.x1, x2: move.x2, y1: move.y1, y2: move.y2} }, function(err, game) {
+         if(err) {
+            console.log('Error finding game.');
+            // Emit invalid move/socket error
+         }
+         else if(game === null) { // A move doesn't exist in this game with the supplied coordinates
+            console.log('Value of Game.findOne: ' + game);
+
+            Game.findById(move.gameID, function(err, game) {
+
+               if(!err && game) { // No error occurred and we got the game
+
+                  game.moves.push({mover: move.mover, coordinates: {x1: move.x1, x2: move.x2, y1: move.y1, y2: move.y2}});
+
+                  game.save(function(err) {
+                     if(err) {
+                        console.log('Error saving game.');
+                        // Emit invalid move/socket error
+                     }
+                     else {
+                        console.log('New move added to game!');
+                        socket.emit('valid move', {coordinates: {x1: move.x1, x2: move.x2, y1: move.y1, y2: move.y2}});
+                     }
+                  });
+               }
+               else {
+                  console.log('Error finding game.');
+                  // Emit invalid move
+               }
+
+            });
+
+         }
+         else { // A move exists with these coordinates in this game
+            console.log('Move already exists in game');
+            // Emit invalid move
+         }
+      });
+
+
+   });
+
+
+   // DONE TURN EVENT
+   socket.on('done turn', function(data) {
+
+      console.log(data.mover + ' is done their turn.');
+      console.log('X1 Coordinate ' + data.coordinates.x1);
+
+      // Tell the other user that it's now their turn
+      console.log('Broadcasting message to room: ' + data.gameRoom);
+
+      socket.to(data.gameRoom).emit('my turn', {opponentsMove: data.coordinates});
 
    });
 
@@ -292,6 +385,7 @@ io.on('connection', function(socket) {
             user.socketID = ""; // reset to an empty string so we don't have socket.id overlaps with offline users
             user.save(function(err) {
                if(err) {
+                  console.log('Error saving user.');
                   return;
                }
                socket.broadcast.emit('user offline', user.username);

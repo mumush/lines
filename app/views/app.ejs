@@ -1,6 +1,6 @@
 <script>
 
-window.onload = function(challengeUser) {
+window.onload = function() {
 
 
    // **** Get Client Cookies Sent From Server ****
@@ -166,32 +166,101 @@ window.onload = function(challengeUser) {
    var svgEle = document.getElementsByTagName('svg')[0];
    var svgns = "http://www.w3.org/2000/svg";
 
-   buildBoard();
+
 
    // **** Socket IO Game Events ****
 
    socket.on('initialize game', function(data) {
-      console.log('Initializing game...');
-      //buildBoard();
 
-      // Change text to who's turn it is -> data.currentTurn
+      initializeGame(data);
 
-      // Check if it's my turn
-      // If it is, enable the gameboard (add all event listeners)
+   });
 
-      // ******* WHEN INITIALIZING THE BOARD, DON'T ADD ANY LISTENERS
-      // ADD LISTENERS (THROUGH FUNCTION) IF IT'S THE PLAYERS TURN, IF IT'S NOT, REMOVE THEM
+   socket.on('my turn', function(data) {
 
-      // WHEN SENDING 'make move', SUPPLY THE COORDINATES ALONG WITH THE ATTR'S OF THE LINE
-      // MIGHT NOT BE A NEED FOR THE ATTR NAMES, USING A STANDARD ORDER COULD BE FINE
+      console.log('My turn!');
 
-      // AFTER SENDING 'make move' TO THE SERVER, SEND 'new turn' TO BOTH SOCKETS, AND REPEAT THE ABOVE PROCESS
-      // IN 'new turn', SUPPLY THE LAST MOVE MADE, UPDATE THE UI (CHANGE COLOR OF LINES/REMOVE CLICK LISTENER), AND THEN ENABLE THE
+      // Enable interaction with the lines
+      toggleLineListeners(true);
+
+      if( data.opponentsMove != null ) { // Will only be null on first turn of game
+
+         console.log('Update UI for opponents move x1: ' + data.opponentsMove.x1);
+
+         var lineToUpdate = getLineByAttrs(data.opponentsMove);
+         lineToUpdate.css('stroke', 'red');
+         lineToUpdate.css('stroke-width', '6px');
+
+      }
+
+   });
+
+   socket.on('valid move', function(data) {
+
+      // Disable interaction with the lines
+      toggleLineListeners(false);
+
+      console.log('Valid move.');
+
+      var lineToUpdate = getLineByAttrs(data.coordinates);
+      lineToUpdate.css('stroke', 'green');
+      lineToUpdate.css('stroke-width', '6px');
+
+      socket.emit('done turn', {gameRoom: docCookies.getItem('linesAppGameRoom'), mover: cookieUsername, coordinates: data.coordinates});
 
    });
 
 
+
    // **** Game DOM Methods ****
+
+
+
+   function initializeGame(gameData) {
+
+      console.log('Initializing game...');
+
+      // Store the gameID and the room in cookies so we can pass them around events
+      docCookies.setItem('linesAppGame', gameData.gameID);
+      docCookies.setItem('linesAppGameRoom', gameData.gameRoom);
+
+      buildBoard();
+      createScoreboard(gameData.players);
+
+      // Now set the board to display block so it's visible
+      $('#gameboard-container').show();
+
+
+
+      console.log('First turn user:' + gameData.firstTurn);
+      if( gameData.firstTurn == cookieUsername ) { // I go first
+
+         console.log('I go first!'); // Consider showing a popup saying that you go first or second here
+
+         socket.emit('start game');
+      }
+
+   }
+
+   // Initialize the scoreboard with both players' usernames, starting with a score of zero
+   function createScoreboard(players) {
+
+      console.log('Creating scoreboard...');
+
+      if(players[0] == cookieUsername) { // first index [0] in the players array is us
+         $('.my-score-container .username').text(players[0]);
+         $('.opponent-score-container .username').text(players[1]);
+      }
+      else { // players[1] is us
+         $('.my-score-container .username').text(players[1]);
+         $('.opponent-score-container .username').text(players[0]);
+      }
+
+      // Set both players starting scores to zero
+      $('.my-score-container .score').text("0");
+      $('.opponent-score-container .score').text("0");
+
+   }
 
    function buildBoard() {
 
@@ -204,10 +273,10 @@ window.onload = function(challengeUser) {
             line.setAttributeNS(null, 'x2', (j * 100)+100);
             line.setAttributeNS(null, 'y1', i);
             line.setAttributeNS(null, 'y2', i);
-            line.setAttributeNS(null, 'stroke', 'red');
+            line.setAttributeNS(null, 'stroke', 'pink');
             line.setAttributeNS(null, 'stroke-width', '6px');
             line.setAttributeNS(null, 'class', 'gameboard-line');
-            line.setAttributeNS(null, 'style', 'cursor: pointer');
+            // line.setAttributeNS(null, 'style', 'cursor: pointer');
             svgEle.appendChild(line);
          }
       }
@@ -218,27 +287,55 @@ window.onload = function(challengeUser) {
             line.setAttributeNS(null, 'x2', i);
             line.setAttributeNS(null, 'y1', j * 100);
             line.setAttributeNS(null, 'y2', (j * 100)+100);
-            line.setAttributeNS(null, 'stroke', 'red');
+            line.setAttributeNS(null, 'stroke', 'pink');
             line.setAttributeNS(null, 'stroke-width', '6px');
             line.setAttributeNS(null, 'class', 'gameboard-line');
-            line.setAttributeNS(null, 'style', 'cursor: pointer');
+            // line.setAttributeNS(null, 'style', 'cursor: pointer');
             svgEle.appendChild(line);
          }
       }
-
-      // Register an onclick listener for each of the lines
-      // Adding in above loop would yield -> function is out of svg namespace
-      $('.gameboard-line').bind('click', function(event) {
-         lineClicked(event);
-      });
    }
 
    function lineClicked(event) {
 
-      console.log('Line clicked x1: ' + $(event.target).attr('x1'));
+      var line = $(event.target);
+      console.log('Line clicked at x1: ' + line.attr('x1'));
+      console.log('Game ID: ' + docCookies.getItem('linesAppGame'));
+      socket.emit('check move', {gameID: docCookies.getItem('linesAppGame'), mover: cookieUsername, x1: line.attr('x1'), x2: line.attr('x2'), y1: line.attr('y1'), y2: line.attr('y2')});
 
-      // Send the coordinates of the line to the socket
-      //socket.emit('make move', {sender: cookieUsername, body: message});
+   }
+
+
+   // **** Game Helper Methods ****
+
+
+   // Binds or removes an onclick listener for each of the lines
+   function toggleLineListeners(bindListeners) {
+      if(bindListeners) {
+         $('.gameboard-line').bind('click', function(event) {
+            lineClicked(event);
+         });
+         $('.gameboard-line').css('cursor', 'pointer');
+      }
+      else {
+         $('.gameboard-line').unbind('click');
+         $('.gameboard-line').css('cursor', 'auto');
+      }
+   }
+
+
+   // Returns the line at the passed in coordinates
+   function getLineByAttrs(coords) {
+
+      var selectorString = ".gameboard-line[x1='" + coords.x1 + "']" + "[x2='" + coords.x2 + "']";
+      selectorString += "[y1='" + coords.y1 + "']" + "[y2='" + coords.y2 + "']";
+
+      var lineEle = $(selectorString);
+      console.log(JSON.stringify(lineEle));
+      console.log('Get element test, x1: ' + lineEle.attr('x1') );
+
+      return lineEle;
+
    }
 
 

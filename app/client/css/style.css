@@ -21,6 +21,23 @@
    background: grey;
 }
 
-.gameboard-container {
+#gameboard-container {
+
+   display: none;
+
+   background: blue;
+
    text-align: center;
+}
+
+.my-score-container {
+   background: green;
+}
+
+.opponent-score-container {
+   background: red;
+}
+
+.my-score-container, .opponent-score-container  {
+   display: inline-block;
 }
