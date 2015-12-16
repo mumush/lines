@@ -237,17 +237,64 @@ io.on('connection', function(socket) {
    socket.on('challenge request', function(data) {
       console.log(data.sender + ' requests to challenge ' + data.opponent);
 
-      User.findOne( {username: data.opponent}, function(err, user) {
+      // Make sure both users are online, and not in games
+      User.find( { $or:[{'username': data.sender}, {'username': data.opponent}] }, function(err, users) {
 
-         if(!err && user) { // No error occurred and the user exists
-            var opponentSocket = user.socketID;
-            console.log('Sending Challenge To: ' + user.username + ' @ ' + user.socketID);
-            socket.broadcast.to(opponentSocket).emit('challenge user', data.sender);
+         // No error occurred and we found both users
+         if( !err && users.length == 2 ) {
+            console.log('Both users exist.');
+            // Make sure both users are online, and not in games already
+            if( (users[0].isOnline === true && users[1].isOnline === true) && (users[0].inGame === false && users[1].inGame === false) ) {
+               console.log('Both users are online and not in games.');
+
+               // Mark both as being in a game (they're not really in a game yet)
+               users[0].inGame = true;
+               users[1].inGame = true;
+
+               users[0].save(function(err) {
+                  if(!err) {
+                     console.log('First user saved as in game.');
+                     users[1].save(function(err) {
+                        if(!err) {
+                           console.log('Second user saved as in game.');
+                           // Now tell all users that there is a new challenge request in place so we can remove
+                           // the challenge button from these users on the front-end
+                           io.emit('pending challenge', {users: [data.sender, data.opponent]});
+
+                           // Find the opponents socket id, and then emit the challenge to them
+                           var opponentSocket;
+
+                           if( users[0].username ==  data.opponent) {
+                              opponentSocket = users[0].socketID;
+                              console.log('Sending Challenge To: ' + users[0].username + ' @ ' + users[0].socketID);
+                              socket.broadcast.to(opponentSocket).emit('challenge user', data.sender);
+                           }
+                           else {
+                              opponentSocket = users[1].socketID;
+                              console.log('Sending Challenge To: ' + users[1].username + ' @ ' + users[1].socketID);
+                              socket.broadcast.to(opponentSocket).emit('challenge user', data.sender);
+                           }
+
+                        }
+                     });
+                  }
+               });
+
+            }
+            else {
+               console.log('One or both users is either in a game or offline.');
+               // Send back some kind of error here
+            }
+
+
+         }
+         else {
+            console.log('Error finding users.');
          }
 
-      });
+      }); // end DB Find
 
-   });
+   }); // end socket event
 
 
    // CHALLENGE ACCEPTED EVENT
@@ -285,6 +332,21 @@ io.on('connection', function(socket) {
                   io.sockets.connected[users[0].socketID].join(gameRoomName);
                   io.sockets.connected[users[1].socketID].join(gameRoomName);
 
+                  users[0].inGameRoom = gameRoomName;
+                  users[0].inGameAgainst = users[1].username;
+                  users[1].inGameRoom = gameRoomName;
+                  users[1].inGameAgainst = users[0].username;
+
+                  users[0].save(function(err) {
+                     if(!err) {
+                        users[1].save(function(err) {
+                           if(!err) {
+                              console.log('Both users saved successfully.');
+                           }
+                        });
+                     }
+                  });
+
                   // Emit the message only to the new socket room
                   io.to(gameRoomName).emit('initialize game', {gameID: game._id, gameRoom: gameRoomName, firstTurn: users[0].username, players: [users[0].username, users[1].username]});
 
@@ -294,6 +356,42 @@ io.on('connection', function(socket) {
 
          }
 
+      });
+
+   });
+
+   // CHALLENGE REJECTED EVENT
+   socket.on('challenge rejected', function(data) {
+
+      console.log(data.challengee + ' rejected the challenge from ' + data.challenger);
+
+      // Set both users inGame status back to false
+      // Make sure both users are online, and not in games
+      User.find( { $or:[{'username': data.challenger}, {'username': data.challengee}] }, function(err, users) {
+
+         // No error occurred and we found both users
+         if( (!err && users.length == 2) ) {
+            console.log('Found both users.');
+
+            users[0].inGame = false;
+            users[1].inGame = false;
+
+            users[0].save(function(err) {
+               if(!err) {
+                  console.log('Saved first user as no longer in game.');
+                  users[1].save(function(err) {
+                     if(!err) {
+                        console.log('Saved second user as no longer in game.');
+                        io.emit('pending challenge rejected', {users: [data.challenger, data.challengee]});
+                     }
+                  });
+               }
+
+            });
+         }
+         else {
+            console.log('Unable to find users.');
+         }
       });
 
    });
@@ -379,17 +477,50 @@ io.on('connection', function(socket) {
       console.log('A user disconnected');
 
       User.findOne( {socketID: socket.id}, function(err, user) {
-
          if(!err && user) { // No error occurred and the user exists
-            user.isOnline = false;
-            user.socketID = ""; // reset to an empty string so we don't have socket.id overlaps with offline users
-            user.save(function(err) {
-               if(err) {
-                  console.log('Error saving user.');
-                  return;
+
+            // Tell the opponent that this user left the game, and that they won
+            socket.broadcast.to(user.inGameRoom).emit('game over', {winner: user.inGameAgainst});
+
+            User.findOne( {username: user.inGameAgainst}, function(err, opponent) {
+               if(!err && opponent) {
+
+                  // Get the socket by its id, and leave the game room
+                  var opponentSocket = io.sockets.connected[opponent.socketID];
+                  opponentSocket.leave(opponent.inGameRoom);
+
+                  console.log('Clearing out opponent from game...');
+                  opponent.inGame = false;
+                  opponent.inGameRoom = "";
+                  opponent.inGameAgainst = "";
+
+                  // Save opponent
+                  opponent.save(function(err) {
+                     if(err) {
+                        console.log('Error clearing opponnents game data.');
+                     }
+                     else {
+                        console.log('Opponent game data cleared.');
+                     }
+                  });
                }
-               socket.broadcast.emit('user offline', user.username);
-               console.log(user.username + ' went offline.');
+            });
+
+            // Remove the user from the game room
+            socket.leave(user.inGameRoom);
+
+            // Clean up this user
+            user.isOnline = false;
+            user.inGame = false;
+            user.inGameRoom = "";
+            user.inGameAgainst = "";
+            user.socketID = ""; // reset to an empty string so we don't have socket.id overlaps with offline users
+
+            user.save(function(err) {
+               if(!err) {
+                  socket.broadcast.emit('user offline', user.username);
+                  console.log(user.username + ' went offline.');
+               }
             });
          }
 

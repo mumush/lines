@@ -21,6 +21,8 @@
    background: grey;
 }
 
+/* Game Board */
+
 #gameboard-container {
 
    display: none;

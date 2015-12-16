@@ -41,10 +41,16 @@ window.onload = function() {
       console.log(username + ' went offline.');
    });
 
-   // When a user has sent a chat message
-   socket.on('new chat message', function(message) {
-      console.log(message.sender + ' says: ' + message.body);
-      appendChatMessage(message);
+   // When any user challenges another user (so we can update the UI)
+   socket.on('pending challenge', function(data) {
+      console.log('A user has challenged someone: ' + data.users[0] + ' ' + data.users[1] );
+      toggleUsersInGame(data.users, true);
+   });
+
+   // When any user rejects a challenge from another user
+   socket.on('pending challenge rejected', function(data) {
+      console.log('A user has rejected a challenge from someone: ' + data.users[0] + ' ' + data.users[1] );
+      toggleUsersInGame(data.users, false);
    });
 
    // When another user challenges you to a game
@@ -53,6 +59,17 @@ window.onload = function() {
 
       // Show a modal message allowing user to accept or deny a challenge
       displayChallengeModal(challenger);
+   });
+
+   // When the game is over (no more moves or a user left the game, ie. disconnected)
+   socket.on('game over', function(challenger) {
+      console.log('Game over!');
+   });
+
+   // When a user has sent a chat message
+   socket.on('new chat message', function(message) {
+      console.log(message.sender + ' says: ' + message.body);
+      appendChatMessage(message);
    });
 
 
@@ -78,7 +95,8 @@ window.onload = function() {
       newUserItem.text(username);
 
       var challengeUserBut = $('<button>');
-      challengeUserBut.on('click', function(){ challengeUser(username, challengeUserBut); });
+      var eventData = {username: username, challengeUserBut: challengeUserBut};
+      challengeUserBut.on('click', eventData, function(e){ challengeUser(e.data.username, e.data.challengeUserBut); });
       challengeUserBut.text('Challenge');
 
       newUserItem.append(challengeUserBut);
@@ -90,6 +108,35 @@ window.onload = function() {
       var attrSelector = "#user-" + username;
       var userListItem = $(attrSelector);
       userListItem.remove();
+   }
+
+   function toggleUsersInGame(users, areInGame) {
+
+      console.log('toggleUsersInGame');
+
+      for( var i=0; i<users.length; i++) {
+
+         console.log('User: ' + users[i]);
+
+         var attrSelector = "#user-" + users[i];
+         var userListItem = $(attrSelector);
+
+         if( userListItem.length != 0 && areInGame ) { // If this user is on the DOM and they're in a game
+            userListItem.find('button').remove();
+         }
+         else if( userListItem.length != 0 && !areInGame ) { // If this user is on the DOM and they're not in a game
+            console.log('User is not in a game anymore: ' + users[i]);
+            // Create a challenge button and append it to the users list item
+            var challengeUserBut = $('<button>');
+            var eventData = {username: users[i], challengeUserBut: challengeUserBut};
+            challengeUserBut.on('click', eventData, function(e){ challengeUser(e.data.username, e.data.challengeUserBut); });
+            challengeUserBut.text('Challenge');
+
+            userListItem.append(challengeUserBut);
+         }
+
+      } // End for loop
+
    }
 
    function appendChatMessage(message) {
@@ -139,7 +186,7 @@ window.onload = function() {
       console.log('Rejected challenge from: ' + challenger);
 
       // Consider sending a modal to the user if there's time
-      //socket.emit('challenge rejected', {challenger: challenger, challengee: cookieUsername});
+      socket.emit('challenge rejected', {challenger: challenger, challengee: cookieUsername});
 
       $('#challenge-modal').remove();
 
