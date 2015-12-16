@@ -489,6 +489,8 @@ io.on('connection', function(socket) {
                   var opponentSocket = io.sockets.connected[opponent.socketID];
                   opponentSocket.leave(opponent.inGameRoom);
 
+                  socket.broadcast.emit('user done game', opponent.username);
+
                   console.log('Clearing out opponent from game...');
                   opponent.inGame = false;
                   opponent.inGameRoom = "";

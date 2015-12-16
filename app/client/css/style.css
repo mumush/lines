@@ -23,6 +23,12 @@
 
 /* Game Board */
 
+.your-turn-indicator { /* Change opacity on this when it isn't your turn */
+
+   
+
+}
+
 #gameboard-container {
 
    display: none;
