@@ -464,7 +464,7 @@ io.on('connection', function(socket) {
 
          }
          else { // A move exists with these coordinates in this game
-            console.log('Move already exists in game');
+            console.log('Invalid move: Already exists in game.');
             socket.emit('invalid move', {coordinates: {x1: move.x1, x2: move.x2, y1: move.y1, y2: move.y2}});
          }
       });

@@ -91,6 +91,8 @@ window.onload = function() {
 
       console.log('My turn!');
 
+      toggleTurnIndicator(true); // Shows the user it's their turn
+
       // Enable interaction with the lines
       toggleLineListeners(true);
 
@@ -118,6 +120,8 @@ window.onload = function() {
       lineToUpdate.css('stroke-width', '6px');
 
       socket.emit('done turn', {gameRoom: docCookies.getItem('linesAppGameRoom'), mover: cookieUsername, coordinates: data.coordinates});
+
+      toggleTurnIndicator(false);
 
    });
 
@@ -250,6 +254,17 @@ window.onload = function() {
 
    }
 
+   function toggleTurnIndicator(itsMyTurn) { // if true, show .my-turn-indicator at full opacity
+      if(itsMyTurn) {
+         $('.my-turn-indicator').text('Your turn.');
+         $('.my-turn-indicator').fadeTo('fast', 0.95);
+      }
+      else {
+         $('.my-turn-indicator').text("Opponent's turn.");
+         $('.my-turn-indicator').fadeTo('fast', 0.35);
+      }
+   }
+
 
    // **** Onclick/Onsubmit Methods ****
 
@@ -347,6 +362,9 @@ window.onload = function() {
       $('.my-score-container .score').text("0");
       $('.opponent-score-container .score').text("0");
 
+      // Initialize both players' turns to be 'opponents turn' until a first turn has been sent
+      toggleTurnIndicator(false);
+
    }
 
    function buildBoard() {
@@ -394,6 +412,9 @@ window.onload = function() {
       $('.my-score-container .score').text("");
       $('.opponent-score-container .username').text("");
       $('.opponent-score-container .score').text("");
+
+      $('.my-turn-indicator').text("");
+      $('.my-turn-indicator').css('opacity', '0');
 
       $('#gameboard-container').hide();
 
