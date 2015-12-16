@@ -9,6 +9,8 @@ app.use(bodyParser.json());
 app.use(cookieParser());
 
 var bcrypt = require('bcrypt');
+var SALT = bcrypt.genSaltSync(10);
+
 var jsonWebToken = require('jsonwebtoken');
 
 var mongoose = require('mongoose');
@@ -96,9 +98,12 @@ app.post('/signup', function(req, res) {
 
          console.log('Username not taken...Creating user.');
 
+         // Hash the password via bcrypt
+         var passwordHash = bcrypt.hashSync(escapedPass, SALT);
+
          var newUser = new User({
             username: escapedUsername,
-            password: escapedPass // ******** HASH THIS LATER *********
+            password: passwordHash
          });
 
          // Save the new user
@@ -157,7 +162,7 @@ app.post('/login', authenticate, function(req, res) {
 
       else { // User exists
 
-         if (user.password != escapedPass) { // Password doesn't match
+         if (!bcrypt.compareSync(escapedPass, user.password)) { // Password doesn't match
             console.log('Password does not match username.');
             res.json({ success: false, message: 'Incorrect username or password.' });
          }
