@@ -371,6 +371,9 @@ window.onload = function() {
 
       console.log('Building board...');
 
+      // Assign and id to each line identifying it's location in the coordinate system used
+      // to check if a clicked line forms a square - (0,1) , (0,2) ... etc.
+
       for( var i=0; i<=400; i+=100) {
          for(var j=0; j<4; j++) {
             var line = document.createElementNS(svgns, 'line');
