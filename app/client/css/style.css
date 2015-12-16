@@ -3,6 +3,10 @@
    padding: 0;
 }
 
+.auth-error-message {
+   
+}
+
 #challenge-modal {
 
    background: yellow;

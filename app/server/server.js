@@ -45,7 +45,8 @@ function authenticate(req, res, next) {
       jsonWebToken.verify(token, app.get('tokenSecret'), function(err, decoded) {
          if (err) { // Couldn't verify the token
             console.log('Error, could not verify token.');
-            return res.json({ success: false, message: 'Failed to authenticate token.' });
+            var errorMsg = "Sorry, your token is invalid.";
+            res.render( 'base', {title: 'Login', partial: 'login', data: {error: errorMsg}  } );
          }
          else {  // Token is good, set it to a variable to be accessed 'req' in the next route
             req.decoded = decoded;
@@ -78,7 +79,7 @@ function authenticate(req, res, next) {
 // ******* Start App Routes *******
 
 app.get('/signup', authenticate, function(req, res) {
-   res.render( 'base', {title: 'Signup', partial: 'signup', data: {} } );
+   res.render( 'base', {title: 'Signup', partial: 'signup', data: {error: ""} } );
 });
 
 app.post('/signup', function(req, res) {
@@ -91,7 +92,8 @@ app.post('/signup', function(req, res) {
 
       if(err) { // Error occurred
          console.log('User find error occurred.');
-         return res.json({ success: false, message: 'Error querying the database.' });
+         var errorMsg = "We're sorry.  A database error occurred. Please try again.";
+         res.render( 'base', {title: 'Signup', partial: 'signup', data: {error: errorMsg} } );
       }
 
       else if(!user) { // There isn't a user with this username
@@ -110,8 +112,8 @@ app.post('/signup', function(req, res) {
          newUser.save(function(err, user) {
             if(err){
                console.log("Error Creating User");
-               return res.json({ success: false, message: 'Error creating user.' }); // Make this more helpful for the user later
-               // throw err;
+               var errorMsg = "We're sorry. A database error occurred. Please try again.";
+               res.render( 'base', {title: 'Signup', partial: 'signup', data: {error: errorMsg} } );
             }
             else {
                console.log('New user saved successfully: ' + user);
@@ -131,7 +133,8 @@ app.post('/signup', function(req, res) {
 
       else { // User exists -> username is taken
          console.log('User already exists with this username.');
-         return res.json({ success: false, message: 'Username is already in use.' });
+         var error = "Unfortunately that username is already taken.";
+         res.render( 'base', {title: 'Signup', partial: 'signup', data: {error: error} } );
       }
 
    });
@@ -139,7 +142,7 @@ app.post('/signup', function(req, res) {
 });
 
 app.get('/login', authenticate, function(req, res) {
-   res.render( 'base', {title: 'Login', partial: 'login', data: {} } );
+   res.render( 'base', {title: 'Login', partial: 'login', data: {error: ""}  } );
 });
 
 app.post('/login', authenticate, function(req, res) {
@@ -148,27 +151,33 @@ app.post('/login', authenticate, function(req, res) {
    var escapedUsername = ((req.body.username).replace(/[^\w\s]/gi, '')).trim();
    var escapedPass = ((req.body.password).replace(/[^\w\s]/gi, '')).trim();
 
+   var errorMsg = "";
+
    User.findOne( {username: escapedUsername}, function(err, user) {
 
       if(err) { // Error occurred
          console.log('User find error occurred.');
-         return res.json({ success: false, message: 'Error querying the database.' });
+         errorMsg = "We're sorry.  A database error occurred. Please try again.";
+         res.render( 'base', {title: 'Login', partial: 'login', data: {error: errorMsg}  } );
       }
 
       else if (!user) { // User doesn't exist
          console.log('User does not exist.');
-         res.json({ success: false, message: 'Incorrect username or password.' });
+         errorMsg = "Incorrect username or password."; // Don't tell them the user doesn't exist
+         res.render( 'base', {title: 'Login', partial: 'login', data: {error: errorMsg}  } );
       }
 
       else { // User exists
 
          if (!bcrypt.compareSync(escapedPass, user.password)) { // Password doesn't match
             console.log('Password does not match username.');
-            res.json({ success: false, message: 'Incorrect username or password.' });
+            errorMsg = "The username or password is incorrect.";
+            res.render( 'base', {title: 'Login', partial: 'login', data: {error: errorMsg}  } );
          }
          else if(user.isOnline) { // This user is already online somewhere else, don't let someone else login again (new socket)
             console.log('User is already online.');
-            res.json({ success: false, message: 'User is already logged in.' });
+            errorMsg = "Sorry, this user is already logged in.";
+            res.render( 'base', {title: 'Login', partial: 'login', data: {error: errorMsg}  } );
          }
          else { // Password is correct, and they're not already online (trying to login from multiple windows/tabs)
 
@@ -194,7 +203,6 @@ app.get('/', authenticate, function(req, res) {
 
       if(err) { // Error occurred
          console.log('Error retrieving all users.');
-         return res.json({ success: false, message: 'Error querying the database.' });
       }
       else {
          res.render( 'base', {title: 'Home', partial: 'index', data: {users: users} } );
@@ -203,6 +211,9 @@ app.get('/', authenticate, function(req, res) {
 });
 
 // ******* End App Routes *******
+
+
+
 
 
 // ******* Initialize Socket IO *******
