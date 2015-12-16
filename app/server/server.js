@@ -8,6 +8,7 @@ app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser.json());
 app.use(cookieParser());
 
+var bcrypt = require('bcrypt');
 var jsonWebToken = require('jsonwebtoken');
 
 var mongoose = require('mongoose');
@@ -78,9 +79,13 @@ app.get('/signup', authenticate, function(req, res) {
    res.render( 'base', {title: 'Signup', partial: 'signup', data: {} } );
 });
 
-app.post('/signup', function(req, res) { // ***** SANITIZE DATA *****
+app.post('/signup', function(req, res) {
 
-   User.findOne( {username: req.body.username}, function(err, user) {
+   // Remove special characters
+   var escapedUsername = ((req.body.username).replace(/[^\w\s]/gi, '')).trim();
+   var escapedPass = ((req.body.password).replace(/[^\w\s]/gi, '')).trim();
+
+   User.findOne( {username: escapedUsername}, function(err, user) {
 
       if(err) { // Error occurred
          console.log('User find error occurred.');
@@ -92,8 +97,8 @@ app.post('/signup', function(req, res) { // ***** SANITIZE DATA *****
          console.log('Username not taken...Creating user.');
 
          var newUser = new User({
-            username: req.body.username,
-            password: req.body.password // HASH THIS LATER
+            username: escapedUsername,
+            password: escapedPass // ******** HASH THIS LATER *********
          });
 
          // Save the new user
@@ -134,7 +139,11 @@ app.get('/login', authenticate, function(req, res) {
 
 app.post('/login', authenticate, function(req, res) {
 
-   User.findOne( {username: req.body.username}, function(err, user) {
+   // Remove special characters
+   var escapedUsername = ((req.body.username).replace(/[^\w\s]/gi, '')).trim();
+   var escapedPass = ((req.body.password).replace(/[^\w\s]/gi, '')).trim();
+
+   User.findOne( {username: escapedUsername}, function(err, user) {
 
       if(err) { // Error occurred
          console.log('User find error occurred.');
@@ -148,7 +157,7 @@ app.post('/login', authenticate, function(req, res) {
 
       else { // User exists
 
-         if (user.password != req.body.password) { // Password doesn't match
+         if (user.password != escapedPass) { // Password doesn't match
             console.log('Password does not match username.');
             res.json({ success: false, message: 'Incorrect username or password.' });
          }
@@ -228,7 +237,12 @@ io.on('connection', function(socket) {
    socket.on('send chat message', function(data) {
       console.log(data.sender + ' says: ' + data.body);
       // *** DO VALIDATION HERE ***
-      io.emit('new chat message', {sender: data.sender, body: data.body});
+
+      // Remove special characters
+      var escapedSender = ((data.sender).replace(/[^\w\s]/gi, '')).trim();
+      var escapedBody = ((data.body).replace(/[^\w\s,'-.?!]/gi, '')).trim(); // Here allow punctuation
+
+      io.emit('new chat message', {sender: escapedSender, body: escapedBody});
 
    });
 

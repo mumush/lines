@@ -134,7 +134,10 @@ window.onload = function() {
       }
 
       // Set the submit handler for the form
-      $('#compose-message-form').on('submit', function(){ sendMessage(event) });
+      $('#compose-message-form').on('submit', function(event) {
+         event.preventDefault();
+         sendMessage();
+      });
 
    }
 
@@ -259,13 +262,18 @@ window.onload = function() {
       socket.emit('challenge request', {sender: cookieUsername, opponent: opponentUsername});
    }
 
-   function sendMessage(event) {
-      event.preventDefault();
-      var message = $('#message-input').val();
-      console.log('Send Message: ' + message);
+   function sendMessage() {
 
-      // DO VALIDATION CHECKS HERE
-      socket.emit('send chat message', {sender: cookieUsername, body: message});
+      var escapedMessage = $('#message-input').val().replace(/[^\w\s,'-.?!]/gi, '');
+      escapedMessage = escapedMessage.trim();
+
+      if( escapedMessage != "" ) { // If the message isn't empty
+         console.log('Send Message: ' + escapedMessage);
+         socket.emit('send chat message', {sender: cookieUsername, body: escapedMessage});
+      }
+
+      $('#message-input').val("");
+
    }
 
 
@@ -336,7 +344,6 @@ window.onload = function() {
             line.setAttributeNS(null, 'stroke', 'pink');
             line.setAttributeNS(null, 'stroke-width', '6px');
             line.setAttributeNS(null, 'class', 'gameboard-line');
-            // line.setAttributeNS(null, 'style', 'cursor: pointer');
             svgEle.appendChild(line);
          }
       }
@@ -350,7 +357,6 @@ window.onload = function() {
             line.setAttributeNS(null, 'stroke', 'pink');
             line.setAttributeNS(null, 'stroke-width', '6px');
             line.setAttributeNS(null, 'class', 'gameboard-line');
-            // line.setAttributeNS(null, 'style', 'cursor: pointer');
             svgEle.appendChild(line);
          }
       }
