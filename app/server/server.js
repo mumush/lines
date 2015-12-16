@@ -241,8 +241,6 @@ io.on('connection', function(socket) {
    // SEND CHAT MESSAGE EVENT -> client sent a message, emit to all sockets
    socket.on('send chat message', function(data) {
       console.log(data.sender + ' says: ' + data.body);
-      // *** DO VALIDATION HERE ***
-
       // Remove special characters
       var escapedSender = ((data.sender).replace(/[^\w\s]/gi, '')).trim();
       var escapedBody = ((data.body).replace(/[^\w\s,'-.?!]/gi, '')).trim(); // Here allow punctuation
@@ -437,7 +435,6 @@ io.on('connection', function(socket) {
       Game.findOne({ _id: move.gameID, 'moves.coordinates': {x1: move.x1, x2: move.x2, y1: move.y1, y2: move.y2} }, function(err, game) {
          if(err) {
             console.log('Error finding game.');
-            // Emit invalid move/socket error
          }
          else if(game === null) { // A move doesn't exist in this game with the supplied coordinates
             console.log('Value of Game.findOne: ' + game);
@@ -451,7 +448,7 @@ io.on('connection', function(socket) {
                   game.save(function(err) {
                      if(err) {
                         console.log('Error saving game.');
-                        // Emit invalid move/socket error
+                        // ****** WHAT TO DO IF WE HAVE A DB ERROR ******
                      }
                      else {
                         console.log('New move added to game!');
@@ -461,7 +458,6 @@ io.on('connection', function(socket) {
                }
                else {
                   console.log('Error finding game.');
-                  // Emit invalid move
                }
 
             });
@@ -469,7 +465,7 @@ io.on('connection', function(socket) {
          }
          else { // A move exists with these coordinates in this game
             console.log('Move already exists in game');
-            // Emit invalid move
+            socket.emit('invalid move', {coordinates: {x1: move.x1, x2: move.x2, y1: move.y1, y2: move.y2}});
          }
       });
 

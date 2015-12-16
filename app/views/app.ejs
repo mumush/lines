@@ -50,9 +50,7 @@ window.onload = function() {
    // **** Socket IO Game Events ****
 
    socket.on('initialize game', function(data) {
-
       initializeGame(data);
-
    });
 
    // When any user challenges another user (so we can update the UI)
@@ -120,6 +118,15 @@ window.onload = function() {
       lineToUpdate.css('stroke-width', '6px');
 
       socket.emit('done turn', {gameRoom: docCookies.getItem('linesAppGameRoom'), mover: cookieUsername, coordinates: data.coordinates});
+
+   });
+
+   socket.on('invalid move', function(data) {
+
+      console.log('Invalid move - choose a different line.');
+
+      // Show modal identifying that the move isn't valid (brief alert that dissappears)
+      showInvalidMoveModal();
 
    });
 
@@ -228,6 +235,18 @@ window.onload = function() {
 
       $('#accept-challenge-but').on('click', acceptChallenge);
       $('#reject-challenge-but').on('click', rejectChallenge);
+
+   }
+
+   function showInvalidMoveModal() {
+
+      var invalidMoveModal = "<div class='invalid-move-modal'>You can't move there - choose another line!</div>";
+
+      $(document.body).prepend(invalidMoveModal);
+
+      setTimeout(function() {
+         $('.invalid-move-modal').fadeOut('fast').remove();
+      }, 4000); // 4 seconds
 
    }
 
