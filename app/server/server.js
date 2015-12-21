@@ -465,12 +465,7 @@ io.on('connection', function(socket) {
 
             }
 
-            // If we completed the for loop, we couldn't find any matching moves, so the move is valid
-            console.log('Valid move.');
-
-            // Add the move to the database because it's valid
-            // In the success callback, check if a square was formed
-            // If it was, adjust the game's score for the mover
+            console.log('Valid move.'); // If we completed the for loop, we couldn't find any matching moves, so the move is valid
 
             game.moves.push({ mover: move.mover, coordinates: {x: move.line.x, y: move.line.y} });
 
@@ -482,22 +477,9 @@ io.on('connection', function(socket) {
                else {
                   console.log('New move added to game!');
 
-                  // Determine the direction of the move (horizontal and vertical algorithms are slightly different)
-                  if( move.line.direction === "H" ) {
-                     checkSquareHoriz(game, move.line, move.mover);
-                  }
-                  else if( move.line.direction === "V" ) {
-                     checkSquareVert(game, move.line, move.mover);
-                  }
-                  else { // Someone tampered with the data, send back an error for invalid move
-                     console.log('Error. Invalid move direction.');
-                     // socket.emit('invalid move');
-                     // ** THIS DOESN'T MAKE SENSE HERE, THE MOVE HAS ALREADY BEEN ADDED.  DO THIS CHECK AT THE START OF THE FUNCTION ***
-                  }
+                  checkSquare(game, move.line, move.mover);
                }
             });
-
-
 
          }
 
@@ -512,24 +494,59 @@ io.on('connection', function(socket) {
    });
 
 
-   function checkSquareHoriz(game, line, mover) {
+   function checkSquare(game, line, mover) {
 
-      console.log('Check Square Horiz');
+      var firstSquareLineOne;
+      var firstSquareLineTwo;
+      var firstSquareLineThree;
 
-      // The square that can be formed above this line (where this line is the bottom line)
-      var upTopLine = { x: line.x, y: (line.y - 2) };
-      var upLeftLine = { x: line.x, y: (line.y - 1) };
-      var upRightLine = { x: (line.x + 1), y: (line.y - 1) };
+      var secondSquareLineOne;
+      var secondSquareLineTwo;
+      var secondSquareLineThree;
 
-      // The square that can be formed below this line (where this line is the top line)
-      var downLeftLine = { x: line.x, y: (line.y + 1) };
-      var downRightLine = { x: (line.x + 1), y: (line.y + 1) };
-      var downBotLine = { x: line.x, y: (line.y + 2) };
+      // Check the direction of the line
+
+      if( line.direction === "H" ) { // Use Horizontal algorithm
+
+         console.log('Check Square Horiz');
+
+         // The square that can be formed above this line (where this line is the bottom line)
+         firstSquareLineOne = { x: line.x, y: (line.y - 2) };
+         firstSquareLineTwo = { x: line.x, y: (line.y - 1) };
+         firstSquareLineThree = { x: (line.x + 1), y: (line.y - 1) };
+
+         // The square that can be formed below this line (where this line is the top line)
+         secondSquareLineOne = { x: line.x, y: (line.y + 1) };
+         secondSquareLineTwo = { x: (line.x + 1), y: (line.y + 1) };
+         secondSquareLineThree = { x: line.x, y: (line.y + 2) };
+
+      }
+      else if( line.direction === "V" ) { // Use Vertical algorithm
+
+         console.log('Check Square Vert');
+
+         // The square that can be formed to the right of this line
+         firstSquareLineOne = { x: line.x, y: (line.y - 1) }; // Up right line
+         firstSquareLineTwo = { x: (line.x + 1), y: line.y }; // Right line
+         firstSquareLineThree = { x: line.x, y: (line.y + 1) }; // Down right line
+
+         // The square that can be formed to the left of this line
+         secondSquareLineOne = { x: (line.x - 1), y: (line.y - 1) }; // Up left line
+         secondSquareLineTwo = { x: (line.x - 1), y: line.y }; // Left line
+         secondSquareLineThree = { x: (line.x - 1), y: (line.y + 1) }; // Down left line
+
+      }
+      else {
+         console.log('Invalid line direction');
+         // Emit socket error
+      }
 
 
-      // If either of these come to be 3, we know a square was formed
-      var topSquareLineCount = 0;
-      var botSquareLineCount = 0;
+
+      // The number of lines already moved to by the 'mover' that could form the first or second possible square
+      // If either of these come to be 3, a square was formed
+      var firstSquareLineCount = 0;
+      var secondSquareLineCount = 0;
 
       for( var i=0; i<game.moves.length; i++ ) {
 
@@ -539,50 +556,59 @@ io.on('connection', function(socket) {
             console.log('Mover is the same');
 
             // If a square above this line was formed
-            if( (game.moves[i].coordinates.x === upTopLine.x && game.moves[i].coordinates.y === upTopLine.y) || (game.moves[i].coordinates.x === upLeftLine.x && game.moves[i].coordinates.y === upLeftLine.y) || (game.moves[i].coordinates.x === upRightLine.x && game.moves[i].coordinates.y === upRightLine.y) ) {
+            if( (game.moves[i].coordinates.x === firstSquareLineOne.x && game.moves[i].coordinates.y === firstSquareLineOne.y) || (game.moves[i].coordinates.x === firstSquareLineTwo.x && game.moves[i].coordinates.y === firstSquareLineTwo.y) || (game.moves[i].coordinates.x === firstSquareLineThree.x && game.moves[i].coordinates.y === firstSquareLineThree.y) ) {
 
-               topSquareLineCount++;
+               firstSquareLineCount++;
             }
 
             // // If a square below this line was formed
-            if( (game.moves[i].coordinates.x === downBotLine.x && game.moves[i].coordinates.y === downBotLine.y) || (game.moves[i].coordinates.x === downLeftLine.x && game.moves[i].coordinates.y === downLeftLine.y) || (game.moves[i].coordinates.x === downRightLine.x && game.moves[i].coordinates.y === downRightLine.y) ) {
+            if( (game.moves[i].coordinates.x === secondSquareLineOne.x && game.moves[i].coordinates.y === secondSquareLineOne.y) || (game.moves[i].coordinates.x === secondSquareLineTwo.x && game.moves[i].coordinates.y === secondSquareLineTwo.y) || (game.moves[i].coordinates.x === secondSquareLineThree.x && game.moves[i].coordinates.y === secondSquareLineThree.y) ) {
 
-               botSquareLineCount++;
+               secondSquareLineCount++;
             }
 
          }
 
-      }
+      } // end for loop
 
-      console.log('Top and Bot Sum: ' + (topSquareLineCount + botSquareLineCount));
-      console.log('Top Sum: ' + topSquareLineCount);
-      console.log('Bot Sum: ' + botSquareLineCount);
+
+      console.log('First and Second Line Sum: ' + (firstSquareLineCount + secondSquareLineCount));
+      console.log('First Sum: ' + firstSquareLineCount);
+      console.log('Second Sum: ' + secondSquareLineCount);
 
       var pointsEarned = 0;
 
-      if( topSquareLineCount + botSquareLineCount === 6 ) { // A square was formed above and below this line
-         console.log('Square formed above and below line');
+      if( firstSquareLineCount + secondSquareLineCount === 6 ) { // Two squares were formed
+         console.log('First & Second squares formed');
          pointsEarned = 2;
       }
-      else if( topSquareLineCount === 3 ) {
-         console.log('Square formed above line.');
+      else if( firstSquareLineCount === 3 ) {
+         console.log('First square formed');
          pointsEarned = 1;
       }
-      else if( botSquareLineCount === 3 ) {
-         console.log('Square formed below line.');
+      else if( secondSquareLineCount === 3 ) {
+         console.log('Second square formed.');
          pointsEarned = 1;
       }
       else {
          console.log('No square formed.');
+
          pointsEarned = 0;
+
+         // If the move didn't form a square, there's no need to hit the database and update the score to be (_the_score + 0)
+         // Instead, just emit a valid move, and send null back as the updatedScore so that the front can catch this and doesn't
+         // have to make an unneccessary update to the UI...Then return from the entire function so we don't execute the code below
+         socket.emit('valid move', { line: line, updateScore: null });
+         return;
+
       }
 
 
-      // Don't love the game.save repition here, but because we have to identify whether the mover's username is either the
-      // challenger or the challengee, it would require another bool to abstract out the repition, which makes me feel like
-      // the code would be more complex than using the same db.save method twice
+      // Don't love the game.save() repition here, but because we have to identify whether the mover's username is either the
+      // challenger or the challengee in the db, it would require another bool to abstract out the repition, which makes me feel like
+      // the code would be more complex than using the same db.save method twice and changing one line
 
-      if( game.challenger.username === mover ) { // We know the mover is the 'challenger'
+      if( game.challenger.username === mover ) { // If true, we know the mover is the 'challenger'
 
          game.challenger.score = game.challenger.score + pointsEarned;
 
@@ -598,7 +624,7 @@ io.on('connection', function(socket) {
          });
 
       }
-      else { // They were the user that was challenged to start with: 'challengee'
+      else { // They are the user that was challenged to start with: 'challengee'
 
          game.challengee.score = game.challengee.score + pointsEarned;
 
@@ -616,16 +642,8 @@ io.on('connection', function(socket) {
       }
 
 
-   } // End checkSquareHoriz function
+   } // end checkSquare() function
 
-
-   function checkSquareVert(game, line, mover) {
-
-      console.log('Check Square Vert');
-
-      socket.emit('valid move', { line: line, updateScore: null });
-
-   }
 
 
    // DONE TURN EVENT

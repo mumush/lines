@@ -119,8 +119,12 @@ window.onload = function() {
       lineToUpdate.css('stroke', 'green');
       lineToUpdate.css('stroke-width', '6px');
 
-      // Update score for player
-      // 
+      if( data.updateScore != null ) { // The move formed a square, and the players score changed
+         console.log('Update the score.');
+      }
+      else {
+         console.log('No point changes.');
+      }
 
       //
       // socket.emit('done turn', {gameRoom: docCookies.getItem('linesAppGameRoom'), mover: cookieUsername, coordinates: data.coordinates});
