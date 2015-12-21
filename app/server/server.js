@@ -338,10 +338,10 @@ io.on('connection', function(socket) {
 
             console.log('Both users found and are online.');
 
-            // Create a new game in the
+            // Create a new game with the supplied usernames and initialize their scores to 0
             var newGame = new Game({
-               challenger: data.challenger,
-               challengee: data.challengee
+               challenger: {username: data.challenger, score: 0},
+               challengee: {username: data.challengee, score: 0}
             });
 
             // Save the new user
@@ -352,7 +352,7 @@ io.on('connection', function(socket) {
                   console.log("Created new game with ID: " + game._id);
 
                   // Make a separate game room (different socket namespace)
-                  var gameRoomName = game.challenger + " " + game.challengee;
+                  var gameRoomName = game.challenger.username + " " + game.challengee.username;
 
                   console.log('Creating Room Named: ' + gameRoomName);
 
@@ -434,54 +434,198 @@ io.on('connection', function(socket) {
 
    });
 
+
    // CHECK MOVE EVENT
    socket.on('check move', function(move) {
 
       console.log('Move made by: ' + move.mover);
       console.log('Check move for game: ' + move.gameID);
-      console.log('Check move at: x1: ' + move.x1 + ' x2: ' + move.x2 + ' y1: ' + move.y1 + ' y2: ' + move.y2);
+      console.log('Line Direction: ' + move.line.direction);
+      console.log('Line Coords: ' + move.line.x + "," + move.line.y);
 
-      // Attempt to find a move in the game (via supplied gameID)
-      // If it doesn't exist, add it and emit a valid move - If it does, emit an invalid move to the sender
-      Game.findOne({ _id: move.gameID, 'moves.coordinates': {x1: move.x1, x2: move.x2, y1: move.y1, y2: move.y2} }, function(err, game) {
+      // First check if the gameID passed in from the front-end is in our database (in case someone tampered with their cookie)
+      Game.findById(move.gameID, function(err, game) {
+
          if(err) {
             console.log('Error finding game.');
          }
-         else if(game === null) { // A move doesn't exist in this game with the supplied coordinates
-            console.log('Value of Game.findOne: ' + game);
+         else if( game ) { // The game exists - Now check if its 'moves' array has an entry with the supplied coordinates
 
-            Game.findById(move.gameID, function(err, game) {
+            console.log('Game Exists: ' + game._id);
 
-               if(!err && game) { // No error occurred and we got the game
+            // For loop through the 'moves' array and look for matching moves
+            for( var i=0; i<game.moves.length; i++ ) {
 
-                  game.moves.push({mover: move.mover, coordinates: {x1: move.x1, x2: move.x2, y1: move.y1, y2: move.y2}});
+               if( game.moves[i].coordinates.x ===  move.line.x && game.moves[i].coordinates.y ===  move.line.y ) {
+                  console.log('Same X & Y values');
+                  console.log('Invalid move');
+                  socket.emit('invalid move');
+                  return;
+               }
 
-                  game.save(function(err) {
-                     if(err) {
-                        console.log('Error saving game.');
-                        // ****** WHAT TO DO IF WE HAVE A DB ERROR ******
-                     }
-                     else {
-                        console.log('New move added to game!');
-                        socket.emit('valid move', {coordinates: {x1: move.x1, x2: move.x2, y1: move.y1, y2: move.y2}});
-                     }
-                  });
+            }
+
+            // If we completed the for loop, we couldn't find any matching moves, so the move is valid
+            console.log('Valid move.');
+
+            // Add the move to the database because it's valid
+            // In the success callback, check if a square was formed
+            // If it was, adjust the game's score for the mover
+
+            game.moves.push({ mover: move.mover, coordinates: {x: move.line.x, y: move.line.y} });
+
+            game.save(function(err) {
+               if(err) {
+                  console.log('Error saving game.');
+                  // Emit a new event like 'Database error' and end the game on both ends
                }
                else {
-                  console.log('Error finding game.');
-               }
+                  console.log('New move added to game!');
 
+                  // Determine the direction of the move (horizontal and vertical algorithms are slightly different)
+                  if( move.line.direction === "H" ) {
+                     checkSquareHoriz(game, move.line, move.mover);
+                  }
+                  else if( move.line.direction === "V" ) {
+                     checkSquareVert(game, move.line, move.mover);
+                  }
+                  else { // Someone tampered with the data, send back an error for invalid move
+                     console.log('Error. Invalid move direction.');
+                     // socket.emit('invalid move');
+                     // ** THIS DOESN'T MAKE SENSE HERE, THE MOVE HAS ALREADY BEEN ADDED.  DO THIS CHECK AT THE START OF THE FUNCTION ***
+                  }
+               }
             });
 
+
+
          }
-         else { // A move exists with these coordinates in this game
-            console.log('Invalid move: Already exists in game.');
-            socket.emit('invalid move', {coordinates: {x1: move.x1, x2: move.x2, y1: move.y1, y2: move.y2}});
+
+         else { // Game with supplied gameID doesn't exist
+            console.log('Game with supplied ID does not exist.');
          }
+
+
       });
 
 
    });
+
+
+   function checkSquareHoriz(game, line, mover) {
+
+      console.log('Check Square Horiz');
+
+      // The square that can be formed above this line (where this line is the bottom line)
+      var upTopLine = { x: line.x, y: (line.y - 2) };
+      var upLeftLine = { x: line.x, y: (line.y - 1) };
+      var upRightLine = { x: (line.x + 1), y: (line.y - 1) };
+
+      // The square that can be formed below this line (where this line is the top line)
+      var downLeftLine = { x: line.x, y: (line.y + 1) };
+      var downRightLine = { x: (line.x + 1), y: (line.y + 1) };
+      var downBotLine = { x: line.x, y: (line.y + 2) };
+
+
+      // If either of these come to be 3, we know a square was formed
+      var topSquareLineCount = 0;
+      var botSquareLineCount = 0;
+
+      for( var i=0; i<game.moves.length; i++ ) {
+
+         // Make sure that this index in the moves array is a move made by the mover, not the opponent
+         if( game.moves[i].mover === mover ) {
+
+            console.log('Mover is the same');
+
+            // If a square above this line was formed
+            if( (game.moves[i].coordinates.x === upTopLine.x && game.moves[i].coordinates.y === upTopLine.y) || (game.moves[i].coordinates.x === upLeftLine.x && game.moves[i].coordinates.y === upLeftLine.y) || (game.moves[i].coordinates.x === upRightLine.x && game.moves[i].coordinates.y === upRightLine.y) ) {
+
+               topSquareLineCount++;
+            }
+
+            // // If a square below this line was formed
+            if( (game.moves[i].coordinates.x === downBotLine.x && game.moves[i].coordinates.y === downBotLine.y) || (game.moves[i].coordinates.x === downLeftLine.x && game.moves[i].coordinates.y === downLeftLine.y) || (game.moves[i].coordinates.x === downRightLine.x && game.moves[i].coordinates.y === downRightLine.y) ) {
+
+               botSquareLineCount++;
+            }
+
+         }
+
+      }
+
+      console.log('Top and Bot Sum: ' + (topSquareLineCount + botSquareLineCount));
+      console.log('Top Sum: ' + topSquareLineCount);
+      console.log('Bot Sum: ' + botSquareLineCount);
+
+      var pointsEarned = 0;
+
+      if( topSquareLineCount + botSquareLineCount === 6 ) { // A square was formed above and below this line
+         console.log('Square formed above and below line');
+         pointsEarned = 2;
+      }
+      else if( topSquareLineCount === 3 ) {
+         console.log('Square formed above line.');
+         pointsEarned = 1;
+      }
+      else if( botSquareLineCount === 3 ) {
+         console.log('Square formed below line.');
+         pointsEarned = 1;
+      }
+      else {
+         console.log('No square formed.');
+         pointsEarned = 0;
+      }
+
+
+      // Don't love the game.save repition here, but because we have to identify whether the mover's username is either the
+      // challenger or the challengee, it would require another bool to abstract out the repition, which makes me feel like
+      // the code would be more complex than using the same db.save method twice
+
+      if( game.challenger.username === mover ) { // We know the mover is the 'challenger'
+
+         game.challenger.score = game.challenger.score + pointsEarned;
+
+         game.save(function(err) {
+            if(err) {
+               console.log('Error saving game.');
+               // Emit a new event like 'Database error' and end the game on both ends
+            }
+            else {
+               console.log('Score updated!');
+               socket.emit('valid move', { line: line, updateScore: {player: game.challenger.username, score: game.challenger.score} });
+            }
+         });
+
+      }
+      else { // They were the user that was challenged to start with: 'challengee'
+
+         game.challengee.score = game.challengee.score + pointsEarned;
+
+         game.save(function(err) {
+            if(err) {
+               console.log('Error saving game.');
+               // Emit a new event like 'Database error' and end the game on both ends
+            }
+            else {
+               console.log('Score updated!');
+               socket.emit('valid move', { line: line, updateScore: {player: game.challengee.username, score: game.challengee.score} });
+            }
+         });
+
+      }
+
+
+   } // End checkSquareHoriz function
+
+
+   function checkSquareVert(game, line, mover) {
+
+      console.log('Check Square Vert');
+
+      socket.emit('valid move', { line: line, updateScore: null });
+
+   }
 
 
    // DONE TURN EVENT

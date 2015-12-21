@@ -111,21 +111,25 @@ window.onload = function() {
    socket.on('valid move', function(data) {
 
       // Disable interaction with the lines
-      toggleLineListeners(false);
+      //toggleLineListeners(false);
 
       console.log('Valid move.');
 
-      var lineToUpdate = getLineByAttrs(data.coordinates);
+      var lineToUpdate = getLineByAttrs(data.line);
       lineToUpdate.css('stroke', 'green');
       lineToUpdate.css('stroke-width', '6px');
 
-      socket.emit('done turn', {gameRoom: docCookies.getItem('linesAppGameRoom'), mover: cookieUsername, coordinates: data.coordinates});
+      // Update score for player
+      // 
 
-      toggleTurnIndicator(false);
+      //
+      // socket.emit('done turn', {gameRoom: docCookies.getItem('linesAppGameRoom'), mover: cookieUsername, coordinates: data.coordinates});
+      //
+      // toggleTurnIndicator(false);
 
    });
 
-   socket.on('invalid move', function(data) {
+   socket.on('invalid move', function() {
 
       console.log('Invalid move - choose a different line.');
 
@@ -319,7 +323,6 @@ window.onload = function() {
 
    // **** Game DOM Methods ****
 
-
    function initializeGame(gameData) {
 
       console.log('Initializing game...');
@@ -371,11 +374,18 @@ window.onload = function() {
 
       console.log('Building board...');
 
-      // Assign and id to each line identifying it's location in the coordinate system used
-      // to check if a clicked line forms a square - (0,1) , (0,2) ... etc.
+      drawHorizLines();
+      drawVertLines();
 
-      for( var i=0; i<=400; i+=100) {
-         for(var j=0; j<4; j++) {
+   }
+
+   function drawHorizLines() {
+
+      var hY = 0;
+
+      for( var i=0; i<=300; i+=100) {
+         var hX = 0;
+         for(var j=0; j<3; j++, hX++) {
             var line = document.createElementNS(svgns, 'line');
             line.setAttributeNS(null, 'x1', (j * 100));
             line.setAttributeNS(null, 'x2', (j * 100)+100);
@@ -384,21 +394,32 @@ window.onload = function() {
             line.setAttributeNS(null, 'stroke', 'pink');
             line.setAttributeNS(null, 'stroke-width', '6px');
             line.setAttributeNS(null, 'class', 'gameboard-line');
+            line.setAttributeNS(null, 'data-coords', ("H|" + hX + "," + hY));
             svgEle.appendChild(line);
          }
+         hY = hY + 2;
       }
-      for( var i=0; i<=400; i+=100) {
-         for(var j=0; j<=4; j++) {
+   }
+
+   function drawVertLines() {
+
+      var vY = 1;
+
+      for( var i=0; i<3; i++) {
+         var vX = 0;
+         for(var j=0; j<=300; j+=100, vX++) {
             var line = document.createElementNS(svgns, 'line');
-            line.setAttributeNS(null, 'x1', i);
-            line.setAttributeNS(null, 'x2', i);
-            line.setAttributeNS(null, 'y1', j * 100);
-            line.setAttributeNS(null, 'y2', (j * 100)+100);
+            line.setAttributeNS(null, 'x1', j);
+            line.setAttributeNS(null, 'x2', j);
+            line.setAttributeNS(null, 'y1', (i * 100));
+            line.setAttributeNS(null, 'y2', (i * 100)+100);
             line.setAttributeNS(null, 'stroke', 'pink');
             line.setAttributeNS(null, 'stroke-width', '6px');
             line.setAttributeNS(null, 'class', 'gameboard-line');
+            line.setAttributeNS(null, 'data-coords', ("V|" + vX + "," + vY));
             svgEle.appendChild(line);
          }
+         vY = vY + 2;
       }
    }
 
@@ -426,9 +447,28 @@ window.onload = function() {
    function lineClicked(event) {
 
       var line = $(event.target);
-      console.log('Line clicked at x1: ' + line.attr('x1'));
-      console.log('Game ID: ' + docCookies.getItem('linesAppGame'));
-      socket.emit('check move', {gameID: docCookies.getItem('linesAppGame'), mover: cookieUsername, x1: line.attr('x1'), x2: line.attr('x2'), y1: line.attr('y1'), y2: line.attr('y2')});
+
+
+      // ***** Gets the coords from the data attribute we sent on initializing the board
+      console.log('Line coords: ' + line.attr('data-coords'));
+
+      var lineData = line.attr('data-coords').split('|');
+      var lineDirection = lineData[0]; // Vertical 'V' or Horizontal 'H'
+      var lineCoords = lineData[1].split(',');
+      var xCoord = parseInt(lineCoords[0]);
+      var yCoord = parseInt(lineCoords[1]);
+
+      console.log('Direction: ' + lineDirection);
+      console.log('X: ' + xCoord);
+      console.log('Y: ' + yCoord);
+
+      // Ensure the values haven't been manually changed to strings
+      // ********* Check server side that the passed in coords are valid by checking against the boad dimensions
+      if( !isNaN(xCoord) && !isNaN(yCoord) ) {
+         console.log('Both values are numbers.');
+         socket.emit('check move', {gameID: docCookies.getItem('linesAppGame'), mover: cookieUsername,
+         line: {direction: lineDirection, x: xCoord, y: yCoord}});
+      }
 
    }
 
@@ -452,14 +492,13 @@ window.onload = function() {
 
 
    // Returns the line at the passed in coordinates
-   function getLineByAttrs(coords) {
+   function getLineByAttrs(line) {
 
-      var selectorString = ".gameboard-line[x1='" + coords.x1 + "']" + "[x2='" + coords.x2 + "']";
-      selectorString += "[y1='" + coords.y1 + "']" + "[y2='" + coords.y2 + "']";
+      var selectorString = ".gameboard-line[data-coords='" + line.direction + "|" + line.x + "," + line.y + "']";
 
       var lineEle = $(selectorString);
       console.log(JSON.stringify(lineEle));
-      console.log('Get element test, x1: ' + lineEle.attr('x1') );
+      console.log('Get element test, x1: ' + lineEle.attr('data-coords') );
 
       return lineEle;
 
