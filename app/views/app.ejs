@@ -98,7 +98,7 @@ window.onload = function() {
 
       if( data.opponentsMove != null ) { // Will only be null on first turn of game
 
-         console.log('Update UI for opponents move x1: ' + data.opponentsMove.x1);
+         console.log('Update UI for opponents move x: ' + data.opponentsMove.x + ' y: ' + data.opponentsMove.y);
 
          var lineToUpdate = getLineByAttrs(data.opponentsMove);
          lineToUpdate.css('stroke', 'red');
@@ -106,30 +106,29 @@ window.onload = function() {
 
       }
 
+      // Update the opponents score (if necessary)
+      updateScore(data.opponentsScore);
+
    });
 
    socket.on('valid move', function(data) {
 
       // Disable interaction with the lines
-      //toggleLineListeners(false);
+      toggleLineListeners(false);
 
       console.log('Valid move.');
 
+      // Update the line
       var lineToUpdate = getLineByAttrs(data.line);
       lineToUpdate.css('stroke', 'green');
       lineToUpdate.css('stroke-width', '6px');
 
-      if( data.updateScore != null ) { // The move formed a square, and the players score changed
-         console.log('Update the score.');
-      }
-      else {
-         console.log('No point changes.');
-      }
+      // Update our score (if necessary)
+      updateScore(data.updateScore);
 
-      //
-      // socket.emit('done turn', {gameRoom: docCookies.getItem('linesAppGameRoom'), mover: cookieUsername, coordinates: data.coordinates});
-      //
-      // toggleTurnIndicator(false);
+      socket.emit('done turn', {gameRoom: docCookies.getItem('linesAppGameRoom'), line: data.line, updatedScore: data.updateScore});
+
+      toggleTurnIndicator(false);
 
    });
 
@@ -505,6 +504,27 @@ window.onload = function() {
       console.log('Get element test, x1: ' + lineEle.attr('data-coords') );
 
       return lineEle;
+
+   }
+
+   function updateScore(scoreObj) {
+
+      if( scoreObj != null ) { // The move formed a square, and the players score changed, so update the UI
+
+         console.log('Update the score.');
+
+         if( scoreObj.player === cookieUsername ) { // Update our score
+            $('.my-score-container .score').text(scoreObj.score);
+         }
+         else { // Update the opponent's score
+            $('.opponent-score-container .score').text(scoreObj.score);
+         }
+
+      }
+      else {
+         console.log('No point changes.');
+      }
+
 
    }
 

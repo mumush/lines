@@ -649,13 +649,12 @@ io.on('connection', function(socket) {
    // DONE TURN EVENT
    socket.on('done turn', function(data) {
 
-      console.log(data.mover + ' is done their turn.');
-      console.log('X1 Coordinate ' + data.coordinates.x1);
+      console.log('x: ' + data.line.x + ' y: ' + data.line.y);
 
       // Tell the other user that it's now their turn
       console.log('Broadcasting message to room: ' + data.gameRoom);
 
-      socket.to(data.gameRoom).emit('my turn', {opponentsMove: data.coordinates});
+      socket.to(data.gameRoom).emit('my turn', {opponentsMove: data.line, opponentsScore: data.updatedScore});
 
    });
 
