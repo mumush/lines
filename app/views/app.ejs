@@ -79,12 +79,23 @@ window.onload = function() {
       displayChallengeModal(challenger);
    });
 
-   // When the game is over (no more moves or a user left the game, ie. disconnected)
-   socket.on('game over', function(data) {
-      console.log('Game over.  The winner is: ' + data.winner);
+   // When the player's opponent leaves the game (disconnected or intentionally left)
+   socket.on('opponent left game', function(data) {
+      console.log('The opponent left the game.  The winner is: ' + data.winner);
       // Check if we won, if we did show a modal
       // Clean up the board
       cleanupBoard();
+   });
+
+   // When the last move in the game has been made
+   socket.on('game over', function(winner) {
+
+      console.log('Game over.');
+
+      showGameOverModal(winner);
+
+      // Disable all click listeners
+
    });
 
    socket.on('my turn', function(data) {
@@ -104,10 +115,10 @@ window.onload = function() {
          lineToUpdate.css('stroke', 'red');
          lineToUpdate.css('stroke-width', '6px');
 
-      }
+         // Update the opponents score (if necessary)
+         updateScore(data.opponentsScore);
 
-      // Update the opponents score (if necessary)
-      updateScore(data.opponentsScore);
+      }
 
    });
 
@@ -126,7 +137,7 @@ window.onload = function() {
       // Update our score (if necessary)
       updateScore(data.updateScore);
 
-      socket.emit('done turn', {gameRoom: docCookies.getItem('linesAppGameRoom'), line: data.line, updatedScore: data.updateScore});
+      socket.emit('done turn', {gameID: docCookies.getItem('linesAppGame'), gameRoom: docCookies.getItem('linesAppGameRoom'), line: data.line, updatedScore: data.updateScore});
 
       toggleTurnIndicator(false);
 
@@ -525,6 +536,33 @@ window.onload = function() {
          console.log('No point changes.');
       }
 
+
+   }
+
+   function showGameOverModal(winner) {
+
+      var gameOverModal;
+
+      if( winner != null ) {
+
+         if( winner === cookieUsername ) { // We won the game!
+            console.log('We won!!!');
+            gameOverModal = "<div class='game-over-modal winner'>You won!</div>";
+         }
+         else { // We lost :(
+            console.log('We lost :(');
+            gameOverModal = "<div class='game-over-modal loser'>You lost.</div>";
+         }
+
+      }
+      else {  // Tie game
+         console.log('Tie game :|');
+         gameOverModal = "<div class='game-over-modal loser'>You tied.</div>";
+      }
+
+      $(document.body).prepend(gameOverModal);
+
+      // Add an 'x' button to the modal as well as a close button
 
    }
 

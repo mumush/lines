@@ -4,7 +4,7 @@
 }
 
 .auth-error-message {
-   
+
 }
 
 #challenge-modal {
@@ -12,6 +12,34 @@
    background: yellow;
 
 }
+
+/* Start Game Over Modal Styles */
+
+.game-over-modal {
+
+   padding: 2em;
+
+}
+
+.winner {
+
+   background: green;
+
+}
+
+.loser {
+
+   background: red;
+
+}
+
+.tied {
+
+   background: yellow;
+
+}
+
+/* End Game Over Modal Styles */
 
 .message {
 

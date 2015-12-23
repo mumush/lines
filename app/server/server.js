@@ -28,6 +28,9 @@ app.use(express.static(path.join(__dirname, '../client')));
 app.set('views', path.join(__dirname, '../views'));
 app.set('view engine', 'ejs');
 
+// Create an app-wide constant for the maximum number of moves per game
+app.set('maxGameMoves', config.maxGameMoves);
+
 
 // **** Route Middleware - Checks token before hitting any route ****
 
@@ -604,8 +607,8 @@ io.on('connection', function(socket) {
       }
 
 
-      // Don't love the game.save() repition here, but because we have to identify whether the mover's username is either the
-      // challenger or the challengee in the db, it would require another bool to abstract out the repition, which makes me feel like
+      // I don't love the game.save() repition here, but because we have to identify whether the mover's username is either the
+      // challenger or the challengee in the db, it would require another bool/check to abstract out the repition, which makes me feel like
       // the code would be more complex than using the same db.save method twice and changing one line
 
       if( game.challenger.username === mover ) { // If true, we know the mover is the 'challenger'
@@ -651,12 +654,63 @@ io.on('connection', function(socket) {
 
       console.log('x: ' + data.line.x + ' y: ' + data.line.y);
 
-      // Tell the other user that it's now their turn
-      console.log('Broadcasting message to room: ' + data.gameRoom);
+      Game.findById(data.gameID, function(err, game) {
+         if(err) {
+            console.log('Error finding game.');
+         }
+         else if(game) {
 
-      socket.to(data.gameRoom).emit('my turn', {opponentsMove: data.line, opponentsScore: data.updatedScore});
+            if( game.moves.length === app.get('maxGameMoves')  ) { // The last move in the game.
+
+               console.log('Last move of the game. Telling both players the game is over.');
+
+               // First tell the opponent that it's their turn, so we can update their UI from the last move
+               socket.to(data.gameRoom).emit('my turn', {opponentsMove: data.line, opponentsScore: data.updatedScore});
+
+               // Find the winner of the game given the scores
+               var gameWinner = findGameWinner(game.challenger, game.challengee);
+               console.log('The winner is: ' + gameWinner);
+
+               // ******** Add the winner's username to the 'winner' field in the DB
+               // ******** In the success callback, emit 'game over' to both players and
+               // ******** remove both players from the game (in DB) and reset their states
+
+               // Then tell both players that the game is over, and who won
+               io.in(data.gameRoom).emit('game over', gameWinner);
+
+            }
+            else { // Any move prior to the last - a normal move.
+
+               // Tell the other user that it's now their turn
+               console.log('Broadcasting message to room: ' + data.gameRoom);
+
+               socket.to(data.gameRoom).emit('my turn', {opponentsMove: data.line, opponentsScore: data.updatedScore});
+
+            }
+
+         }
+      });
 
    });
+
+   // Returns the username of the game winner
+   function findGameWinner(challenger, challengee) {
+
+      var winner;
+
+      if( challenger.score > challengee.score ) { // Challenger won
+         winner = challenger.username;
+      }
+      else if( challenger.score < challengee.score ) { // Challengee won
+         winner = challengee.username;
+      }
+      else { // Tie game
+         winner = null;
+      }
+
+      return winner;
+
+   }
 
 
    // DISCONNECT EVENT
@@ -667,7 +721,7 @@ io.on('connection', function(socket) {
          if(!err && user) { // No error occurred and the user exists
 
             // Tell the opponent that this user left the game, and that they won
-            socket.broadcast.to(user.inGameRoom).emit('game over', {winner: user.inGameAgainst});
+            socket.broadcast.to(user.inGameRoom).emit('opponent left game', {winner: user.inGameAgainst});
 
             User.findOne( {username: user.inGameAgainst}, function(err, opponent) {
                if(!err && opponent) {
