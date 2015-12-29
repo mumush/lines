@@ -202,7 +202,7 @@ app.post('/login', authenticate, function(req, res) {
 });
 
 app.get('/', authenticate, function(req, res) {
-   User.find({ username: { $ne: req.cookies.linesAppUser }, isOnline: true }, '-_id username', function(err, users) { // isOnline: true
+   User.find({ username: { $ne: req.cookies.linesAppUser }, isOnline: true }, '-_id username inGame', function(err, users) { // isOnline: true
 
       if(err) { // Error occurred
          console.log('Error retrieving all users.');
@@ -242,7 +242,7 @@ io.on('connection', function(socket) {
                if(err) {
                   return;
                }
-               socket.broadcast.emit('user online', data.username);
+               socket.broadcast.emit('user online', user);
                console.log(data.username + ' is online.');
             });
          }
@@ -786,6 +786,34 @@ io.on('connection', function(socket) {
    }
 
 
+   // Convenience method for when a user (socket) disconnects
+   // gameRoom = null when the user was not in a game during the disconnect
+   // gameRoom != null when the user was in a game
+   function disconnectUser(socket, user, gameRoom) {
+
+      if(gameRoom !== null) { // The user was in a game, remove them from the game socket room
+         socket.leave(gameRoom);
+      }
+
+      // Reset state of user
+      user.isOnline = false;
+      user.inGame = false;
+      user.socketID = ""; // Reset to an empty string so we don't have socket.id overlaps with offline users
+
+      user.save(function(err) {
+         if(err) {
+            console.log('Error saving user.');
+            // Emit error to front-end
+         }
+         else {
+            socket.broadcast.emit('user offline', user.username);
+            console.log(user.username + ' went offline.');
+         }
+      });
+
+   }
+
+
    // DISCONNECT EVENT
    socket.on('disconnect', function() {
 
@@ -793,57 +821,113 @@ io.on('connection', function(socket) {
 
       User.findOne( {socketID: socket.id}, function(err, user) {
 
-         if(!err && user) { // No error occurred and the user exists
+         if(err) {
+            console.log('Error finding user.');
+            // Emit error to front-end
+         }
+         else if(user) { // No error occurred and the user exists
 
-            // Tell the opponent that this user left the game, and that they won
-            socket.broadcast.to(user.inGameRoom).emit('opponent left game', {winner: user.inGameAgainst});
+            // Find the only game this user was in, that is also currently in progress (complete: false)
+            Game.findOne({ $and: [
+               { $or: [ {'challenger.username': user.username}, {'challengee.username': user.username}] }, { complete: false }
+            ]},
+            function(err, game) {
 
-            User.findOne( {username: user.inGameAgainst}, function(err, opponent) {
-               if(!err && opponent) {
+               if(err) {
+                  console.log('Error finding game.');
+               }
+               else if( game ) {
 
-                  // Get the socket by its id, and leave the game room
-                  var opponentSocket = io.sockets.connected[opponent.socketID];
-                  opponentSocket.leave(opponent.inGameRoom);
+                  console.log('Found game with this user that is still in progress.');
 
-                  socket.broadcast.emit('user done game', opponent.username);
+                  // This user was in a game, disconnect them from the game socket and then clean up their state
+                  disconnectUser(socket, user, game.room);
 
-                  console.log('Clearing out opponent from game...');
-                  opponent.inGame = false;
-                  opponent.inGameRoom = "";
-                  opponent.inGameAgainst = "";
+                  // Need this so we can reset the opponents 'inGame' state
+                  var opponentUsername;
 
-                  // Save opponent
-                  opponent.save(function(err) {
+                  // Figure out if the user that disconnected (this user) is the game's challenger or challengee
+                  // Set the winner of the game to the opponent's username
+                  // Tell the other user (opponent) that this user left the game, and that they won
+                  if( game.challenger.username === user.username ) {
+                     opponentUsername = game.challengee.username;
+                     game.winner = opponentUsername;
+                     io.in(game.room).emit('opponent left game', opponentUsername);
+                  }
+                  else {
+                     opponentUsername = game.challenger.username;
+                     game.winner = opponentUsername;
+                     io.in(game.room).emit('opponent left game', opponentUsername);
+                  }
+
+                  game.complete = true; // The game is now considered 'finished'
+
+                  game.save(function(err) {
                      if(err) {
-                        console.log('Error clearing opponnents game data.');
+                        console.log('Error saving game.');
+                        // Emit a new event like 'Database error' and end the game on both ends
                      }
                      else {
-                        console.log('Opponent game data cleared.');
+                        console.log('Stored the winner in the game.');
+
+                        // Find the opponent in the DB, so that we can set their 'inGame' state to false
+                        User.findOne( {username: opponentUsername}, function(err, opponent) {
+
+                           if(err) {
+                              console.log('Error finding user.');
+                              // Emit error to front-end
+                           }
+                           else if(opponent) { // User exists
+
+                              // Get the socket by its id, and leave the game room
+                              var opponentSocket = io.sockets.connected[opponent.socketID];
+                              opponentSocket.leave(game.room);
+
+                              socket.broadcast.emit('user done game', opponent.username);
+
+                              console.log('Setting opponent as no longer in game...');
+                              opponent.inGame = false;
+
+                              // Save opponent user's state
+                              opponent.save(function(err) {
+                                 if(err) {
+                                    console.log('Error saving opponents in game state.');
+                                 }
+                                 else {
+                                    console.log('Opponent in game state updated.');
+                                 }
+                              });
+
+                           }
+                           else {
+                              console.log('User does not exist.');
+                              // Emit error
+                           }
+
+                        });
+
                      }
                   });
+
                }
+               else {
+
+                  console.log('Could not find a game with this user that is still in progress.');
+
+                  // This user's connection to the socket is terminated, clean up their state
+                  disconnectUser(socket, user, null);
+               }
+
             });
 
-            // Remove the user from the game room
-            socket.leave(user.inGameRoom);
-
-            // Clean up this user
-            user.isOnline = false;
-            user.inGame = false;
-            user.inGameRoom = "";
-            user.inGameAgainst = "";
-            user.socketID = ""; // reset to an empty string so we don't have socket.id overlaps with offline users
-
-            user.save(function(err) {
-               if(!err) {
-                  socket.broadcast.emit('user offline', user.username);
-                  console.log(user.username + ' went offline.');
-               }
-            });
+         }
+         else {
+            console.log('User does not exist.');
+            // Emit error to front-end
          }
 
       });
 
-   });
+   }); // END DISCONNECT EVENT
 
 });

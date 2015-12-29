@@ -30,9 +30,9 @@ window.onload = function() {
    socket.emit('go online', {username: cookieUsername});
 
    // When a new user goes online
-   socket.on('user online', function(username) {
-      addOnlineUser(username);
-      console.log(username + ' is online.');
+   socket.on('user online', function(user) {
+      addOnlineUser(user);
+      console.log(user.username + ' is online.');
    });
 
    // When a new user goes online
@@ -80,8 +80,8 @@ window.onload = function() {
    });
 
    // When the player's opponent leaves the game (disconnected or intentionally left)
-   socket.on('opponent left game', function(data) {
-      console.log('The opponent left the game.  The winner is: ' + data.winner);
+   socket.on('opponent left game', function(winner) {
+      console.log('Your opponent left the game.  The winner is: ' + winner);
       cleanupBoard();
    });
 
@@ -157,7 +157,7 @@ window.onload = function() {
 
       // Add all users that are currently online to the list of users
       for( var i=0; i<users.length; i++ ) {
-         addOnlineUser(users[i].username);
+         addOnlineUser(users[i]);
       }
 
       // Set the submit handler for the form
@@ -168,19 +168,26 @@ window.onload = function() {
 
    }
 
-   function addOnlineUser(username) {
+   function addOnlineUser(user) {
+
+      console.log('Add Online User: ' + user.username + 'is inGame: ' + user.inGame);
 
       var newUserItem = $('<li>');
       newUserItem.addClass('online-user');
-      newUserItem.attr('id', ('user-' + username));
-      newUserItem.text(username);
+      newUserItem.attr('id', ('user-' + user.username));
+      newUserItem.text(user.username);
 
-      var challengeUserBut = $('<button>');
-      var eventData = {username: username, challengeUserBut: challengeUserBut};
-      challengeUserBut.on('click', eventData, function(e){ challengeUser(e.data.username, e.data.challengeUserBut); });
-      challengeUserBut.text('Challenge');
+      // If the user is in a game, we don't want to create a challenge
+      if( user.inGame == false ) {
 
-      newUserItem.append(challengeUserBut);
+         var challengeUserBut = $('<button>');
+         var eventData = {username: user.username, challengeUserBut: challengeUserBut};
+         challengeUserBut.on('click', eventData, function(e){ challengeUser(e.data.username, e.data.challengeUserBut); });
+         challengeUserBut.text('Challenge');
+
+         newUserItem.append(challengeUserBut);
+
+      }
 
       $('#online-users-list').prepend(newUserItem);
    }
