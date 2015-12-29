@@ -341,45 +341,31 @@ io.on('connection', function(socket) {
 
             console.log('Both users found and are online.');
 
+            // Make a separate socket room (different socket namespace) for the players to communicate in
+            var gameRoomName = data.challenger + " " + data.challengee;
+
             // Create a new game with the supplied usernames and initialize their scores to 0
             var newGame = new Game({
                challenger: {username: data.challenger, score: 0},
-               challengee: {username: data.challengee, score: 0}
+               challengee: {username: data.challengee, score: 0},
+               room: gameRoomName
             });
 
-            // Save the new user
+            // Save the new game
             newGame.save(function(err, game) {
 
-               if(!err) { // If there wasn't an error creating the game in the back, emit to both users that we can initialize the game
+               if(!err) { // If there wasn't an error creating the game, emit to both users that we can initialize the game
 
                   console.log("Created new game with ID: " + game._id);
 
-                  // Make a separate game room (different socket namespace)
-                  var gameRoomName = game.challenger.username + " " + game.challengee.username;
-
-                  console.log('Creating Room Named: ' + gameRoomName);
+                  console.log('Creating Room Named: ' + game.room);
 
                   // Join both sockets to the new room by their retrieved id's
-                  io.sockets.connected[users[0].socketID].join(gameRoomName);
-                  io.sockets.connected[users[1].socketID].join(gameRoomName);
-
-                  users[0].inGameRoom = gameRoomName;
-                  users[0].inGameAgainst = users[1].username;
-                  users[1].inGameRoom = gameRoomName;
-                  users[1].inGameAgainst = users[0].username;
-
-                  users[0].save(function(err) {
-                     if(!err) {
-                        users[1].save(function(err) {
-                           if(!err) {
-                              console.log('Both users saved successfully.');
-                           }
-                        });
-                     }
-                  });
+                  io.sockets.connected[users[0].socketID].join(game.room);
+                  io.sockets.connected[users[1].socketID].join(game.room);
 
                   // Emit the message only to the new socket room
-                  io.to(gameRoomName).emit('initialize game', {gameID: game._id, gameRoom: gameRoomName, firstTurn: users[0].username, players: [users[0].username, users[1].username]});
+                  io.to(game.room).emit('initialize game', {gameID: game._id, firstTurn: users[0].username, players: [users[0].username, users[1].username]});
 
                }
 
@@ -655,36 +641,55 @@ io.on('connection', function(socket) {
       console.log('x: ' + data.line.x + ' y: ' + data.line.y);
 
       Game.findById(data.gameID, function(err, game) {
+
          if(err) {
             console.log('Error finding game.');
          }
          else if(game) {
 
-            if( game.moves.length === app.get('maxGameMoves')  ) { // The last move in the game.
+            // It's the last move of the game
+            if( game.moves.length === app.get('maxGameMoves')  ) {
 
                console.log('Last move of the game. Telling both players the game is over.');
 
                // First tell the opponent that it's their turn, so we can update their UI from the last move
-               socket.to(data.gameRoom).emit('my turn', {opponentsMove: data.line, opponentsScore: data.updatedScore});
+               socket.to(game.room).emit('my turn', {opponentsMove: data.line, opponentsScore: data.updatedScore});
 
                // Find the winner of the game given the scores
                var gameWinner = findGameWinner(game.challenger, game.challengee);
                console.log('The winner is: ' + gameWinner);
 
-               // ******** Add the winner's username to the 'winner' field in the DB
-               // ******** In the success callback, emit 'game over' to both players and
-               // ******** remove both players from the game (in DB) and reset their states
+               // Add the winner's username to the 'winner' field in the DB
+               game.winner = gameWinner; // Reminder: this will be null if the game was a tie
 
-               // Then tell both players that the game is over, and who won
-               io.in(data.gameRoom).emit('game over', gameWinner);
+               game.save(function(err) {
+
+                  if(err) {
+                     console.log('Error saving game.');
+                     // Emit a new event like 'Database error' and end the game on both ends
+                  }
+                  else {
+
+                     console.log('Stored the winner in the game.');
+
+                     // Tell both players that the game is over, and who won
+                     io.in(game.room).emit('game over', gameWinner);
+
+                     // Set 'inGame' field of both players to 'false', and remove them from their game socket's room
+                     removePlayersFromGame(game);
+
+                  }
+               });
+
 
             }
-            else { // Any move prior to the last - a normal move.
+            // A standard move that isn't the last
+            else {
 
                // Tell the other user that it's now their turn
-               console.log('Broadcasting message to room: ' + data.gameRoom);
+               console.log('Broadcasting message to room: ' + game.room);
 
-               socket.to(data.gameRoom).emit('my turn', {opponentsMove: data.line, opponentsScore: data.updatedScore});
+               socket.to(game.room).emit('my turn', {opponentsMove: data.line, opponentsScore: data.updatedScore});
 
             }
 
@@ -692,6 +697,74 @@ io.on('connection', function(socket) {
       });
 
    });
+
+
+   // Remove both players from the game in the DB
+   // Disconnect both players from the game's socket room
+   function removePlayersFromGame(game) {
+
+      // Make sure both users are online, and not in games
+      User.find( { $or:[{'username': game.challenger.username}, {'username': game.challengee.username}] }, function(err, users) {
+
+         if(err) {
+            console.log('Error finding users.');
+            // Emit socket error
+         }
+         else if( users.length == 2 ) { // No error occurred and we found both users
+
+            // Set both users as no longer in games
+
+            users[0].inGame = false;
+            users[1].inGame = false;
+
+            users[0].save(function(err) {
+
+               if(err) {
+                  console.log('Error saving user.');
+                  // Emit error to front-end
+               }
+               else {
+
+                  console.log('First player no longer in game.  Removing from socket room: ' + game.room);
+
+                  // Get the first user's socket by its id, and leave the game room
+                  var user0Socket = io.sockets.connected[users[0].socketID];
+                  user0Socket.leave(game.room);
+
+                  // Tell all users that this user is finished their game
+                  io.emit('user done game', users[0].username);
+
+                  users[1].save(function(err) {
+                     if(err) {
+                        console.log('Error saving user.');
+                        // Emit error to front-end
+                     }
+                     else {
+
+                        console.log('Second player no longer in game.  Removing from socket room: ' + game.room);
+
+                        // Get the second user's socket by its id, and leave the game room
+                        var user1Socket = io.sockets.connected[users[1].socketID];
+                        user1Socket.leave(game.room);
+
+                        // Tell all other users that this user is finished their game
+                        io.emit('user done game', users[1].username);
+
+                     }
+                  });
+
+               }
+
+            });
+         }
+         else {
+            console.log('Could not find both users.');
+            // Emit error
+         }
+
+      });
+
+   }
 
    // Returns the username of the game winner
    function findGameWinner(challenger, challengee) {
@@ -715,9 +788,11 @@ io.on('connection', function(socket) {
 
    // DISCONNECT EVENT
    socket.on('disconnect', function() {
+
       console.log('A user disconnected');
 
       User.findOne( {socketID: socket.id}, function(err, user) {
+
          if(!err && user) { // No error occurred and the user exists
 
             // Tell the opponent that this user left the game, and that they won

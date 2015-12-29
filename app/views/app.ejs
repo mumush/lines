@@ -82,8 +82,6 @@ window.onload = function() {
    // When the player's opponent leaves the game (disconnected or intentionally left)
    socket.on('opponent left game', function(data) {
       console.log('The opponent left the game.  The winner is: ' + data.winner);
-      // Check if we won, if we did show a modal
-      // Clean up the board
       cleanupBoard();
    });
 
@@ -94,7 +92,7 @@ window.onload = function() {
 
       showGameOverModal(winner);
 
-      // Disable all click listeners
+      cleanupBoard();
 
    });
 
@@ -137,7 +135,7 @@ window.onload = function() {
       // Update our score (if necessary)
       updateScore(data.updateScore);
 
-      socket.emit('done turn', {gameID: docCookies.getItem('linesAppGame'), gameRoom: docCookies.getItem('linesAppGameRoom'), line: data.line, updatedScore: data.updateScore});
+      socket.emit('done turn', {gameID: docCookies.getItem('linesAppGame'), line: data.line, updatedScore: data.updateScore});
 
       toggleTurnIndicator(false);
 
@@ -341,9 +339,8 @@ window.onload = function() {
 
       console.log('Initializing game...');
 
-      // Store the gameID and the room in cookies so we can pass them around events
+      // Store the gameID in a cookie so we can pass it around events to the back-end
       docCookies.setItem('linesAppGame', gameData.gameID);
-      docCookies.setItem('linesAppGameRoom', gameData.gameRoom);
 
       buildBoard();
       createScoreboard(gameData.players);
@@ -439,8 +436,6 @@ window.onload = function() {
 
    function cleanupBoard() {
 
-      // First hide the game board
-
       // Remove all of the lines from the board
       $('.gameboard-line').each(function() {
          $(this).remove();
@@ -454,6 +449,7 @@ window.onload = function() {
       $('.my-turn-indicator').text("");
       $('.my-turn-indicator').css('opacity', '0');
 
+      // Hide the game board
       $('#gameboard-container').hide();
 
    }
@@ -461,7 +457,6 @@ window.onload = function() {
    function lineClicked(event) {
 
       var line = $(event.target);
-
 
       // ***** Gets the coords from the data attribute we sent on initializing the board
       console.log('Line coords: ' + line.attr('data-coords'));
@@ -557,7 +552,7 @@ window.onload = function() {
       }
       else {  // Tie game
          console.log('Tie game :|');
-         gameOverModal = "<div class='game-over-modal loser'>You tied.</div>";
+         gameOverModal = "<div class='game-over-modal tied'>You tied.</div>";
       }
 
       $(document.body).prepend(gameOverModal);
