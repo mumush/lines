@@ -879,6 +879,8 @@ io.on('connection', function(socket) {
                            }
                            else if(opponent) { // User exists
 
+                              console.log('Found opponent: ' + opponent.username);
+
                               // Get the socket by its id, and leave the game room
                               var opponentSocket = io.sockets.connected[opponent.socketID];
                               opponentSocket.leave(game.room);
