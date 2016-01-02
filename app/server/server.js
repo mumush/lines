@@ -662,6 +662,8 @@ io.on('connection', function(socket) {
                // Add the winner's username to the 'winner' field in the DB
                game.winner = gameWinner; // Reminder: this will be null if the game was a tie
 
+               game.complete = true; // The game is now considered 'finished' as there are no more possible moves
+
                game.save(function(err) {
 
                   if(err) {
@@ -827,7 +829,7 @@ io.on('connection', function(socket) {
          }
          else if(user) { // No error occurred and the user exists
 
-            // Find the only game this user was in, that is also currently in progress (complete: false)
+            // Find a game if this user was in one that is also currently in progress (complete: false)
             Game.findOne({ $and: [
                { $or: [ {'challenger.username': user.username}, {'challengee.username': user.username}] }, { complete: false }
             ]},
