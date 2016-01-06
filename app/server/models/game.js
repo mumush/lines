@@ -10,7 +10,7 @@ var GameSchema = new Schema({
       coordinates: {x: Number, y: Number}
    }],
    room: String, // The name of the socket room that was created for this game - Ex: 'player5 player23' - in that format
-   complete: { type: Boolean, default: false } // Whether the game is finished
+   status: { type: String, default: 0 }, // 0 = pending, 1 = in progress, 2 = done (no more moves or a player disconnect)
 });
 
 module.exports = mongoose.model('Game', GameSchema);

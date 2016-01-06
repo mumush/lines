@@ -292,19 +292,51 @@ io.on('connection', function(socket) {
                            // the challenge button from these users on the front-end
                            io.emit('pending challenge', {users: [data.sender, data.opponent]});
 
-                           // Find the opponents socket id, and then emit the challenge to them
-                           var opponentSocket;
+                           // Make a separate socket room (different socket namespace) for the players to communicate in
+                           var gameRoomName = data.sender + " " + data.opponent;
 
-                           if( users[0].username ==  data.opponent) {
-                              opponentSocket = users[0].socketID;
-                              console.log('Sending Challenge To: ' + users[0].username + ' @ ' + users[0].socketID);
-                              socket.broadcast.to(opponentSocket).emit('challenge user', data.sender);
-                           }
-                           else {
-                              opponentSocket = users[1].socketID;
-                              console.log('Sending Challenge To: ' + users[1].username + ' @ ' + users[1].socketID);
-                              socket.broadcast.to(opponentSocket).emit('challenge user', data.sender);
-                           }
+                           // Create a new game with the supplied usernames and initialize their scores to 0
+                           var newGame = new Game({
+                              challenger: {username: data.sender, score: 0},
+                              challengee: {username: data.opponent, score: 0},
+                              room: gameRoomName,
+                              status: 0 // Game state is 'pending' -> this is the default behavior and is written here to be explicit
+                           });
+
+
+                           // Save the new game
+                           newGame.save(function(err, game) {
+
+                              if(!err) { // If there wasn't an error creating the game, emit to both users that we can initialize the game
+
+                                 console.log("Created new game with ID: " + game._id);
+
+                                 console.log('Creating Room Named: ' + game.room);
+
+                                 // Join both sockets to the new room by their retrieved id's
+                                 io.sockets.connected[users[0].socketID].join(game.room);
+                                 io.sockets.connected[users[1].socketID].join(game.room);
+
+                                 // Find the opponents socket id
+                                 var opponentSocket;
+
+                                 // Then emit the challenge to ONLY their socket
+                                 if( users[0].username ==  data.opponent) {
+                                    opponentSocket = users[0].socketID;
+                                    console.log('Sending Challenge To: ' + users[0].username + ' @ ' + users[0].socketID);
+                                    socket.broadcast.to(opponentSocket).emit('challenge user', data.sender);
+                                 }
+                                 else {
+                                    opponentSocket = users[1].socketID;
+                                    console.log('Sending Challenge To: ' + users[1].username + ' @ ' + users[1].socketID);
+                                    socket.broadcast.to(opponentSocket).emit('challenge user', data.sender);
+                                 }
+
+
+                              }
+
+                           });
+
 
                         }
                      });
@@ -341,31 +373,35 @@ io.on('connection', function(socket) {
 
             console.log('Both users found and are online.');
 
-            // Make a separate socket room (different socket namespace) for the players to communicate in
-            var gameRoomName = data.challenger + " " + data.challengee;
+            // Find a game in which the challenger and challengee match what was sent from the front-end
+            // And ensure that the game's status is still 0: 'pending'
+            Game.findOne({ $and: [ {'challenger.username': data.challenger}, {'challengee.username': data.challengee}, { status: 0 } ] },
+            function(err, game) {
 
-            // Create a new game with the supplied usernames and initialize their scores to 0
-            var newGame = new Game({
-               challenger: {username: data.challenger, score: 0},
-               challengee: {username: data.challengee, score: 0},
-               room: gameRoomName
-            });
+               if(err) {
+                  console.log('Error finding game.');
+               }
+               else if( game ) {
 
-            // Save the new game
-            newGame.save(function(err, game) {
+                  console.log('Found game with the challenger and challengee that is in progress.');
 
-               if(!err) { // If there wasn't an error creating the game, emit to both users that we can initialize the game
+                  game.status = 1; // Set the game status now to 1 -> 'in progress'
 
-                  console.log("Created new game with ID: " + game._id);
+                  game.save(function(err) {
+                     if(err) {
+                        console.log('Error saving game.');
+                        // Emit a new event like 'Database error' and end the game on both ends
+                     }
+                     else {
 
-                  console.log('Creating Room Named: ' + game.room);
+                        // CONSIDER making the first turn random rather than always being the challengee
 
-                  // Join both sockets to the new room by their retrieved id's
-                  io.sockets.connected[users[0].socketID].join(game.room);
-                  io.sockets.connected[users[1].socketID].join(game.room);
+                        // Emit the message only to the new socket room
+                        io.to(game.room).emit('initialize game', {gameID: game._id, firstTurn: game.challengee.username, players: [game.challenger.username, game.challengee.username]});
 
-                  // Emit the message only to the new socket room
-                  io.to(game.room).emit('initialize game', {gameID: game._id, firstTurn: users[0].username, players: [users[0].username, users[1].username]});
+                     }
+
+                  });
 
                }
 
@@ -399,7 +435,27 @@ io.on('connection', function(socket) {
                   users[1].save(function(err) {
                      if(!err) {
                         console.log('Saved second user as no longer in game.');
-                        io.emit('pending challenge rejected', {users: [data.challenger, data.challengee]});
+
+                        // Find the pending game that was created for these players, and delete it
+                        Game.findOne({ $and: [ {'challenger.username': data.challenger}, {'challengee.username': data.challengee}, { status: 0 } ] },
+                        function(err, game) {
+
+                           if(err) {
+                              console.log('Error finding game.');
+                           }
+                           else if( game ) {
+
+                              console.log('Found pending game with both players. Deleting game from the DB...');
+
+                              io.emit('pending challenge rejected', {users: [data.challenger, data.challengee]});
+
+                              // Remove the game from the DB
+                              game.remove();
+
+                           }
+
+                        });
+
                      }
                   });
                }
@@ -662,7 +718,7 @@ io.on('connection', function(socket) {
                // Add the winner's username to the 'winner' field in the DB
                game.winner = gameWinner; // Reminder: this will be null if the game was a tie
 
-               game.complete = true; // The game is now considered 'finished' as there are no more possible moves
+               game.status = 2; // The game is now considered 'done' as there are no more possible moves
 
                game.save(function(err) {
 
@@ -829,9 +885,16 @@ io.on('connection', function(socket) {
          }
          else if(user) { // No error occurred and the user exists
 
-            // Find a game if this user was in one that is also currently in progress (complete: false)
+            // *************
+            // Find a game with this user that is either in progress or pending, we don't want to find 'done' games
+            // and there can't ever be pending and in progress game at the same time
+            // If the game is in progress, do just as is done below
+            // If it's pending clean up the disconnected player and their opponents state, but don't find a winner
+            // Emit a challenge rejected as done in the socket event to update the front-end
+            // Use an if else for this
+            // ************* Edit the below query *************
             Game.findOne({ $and: [
-               { $or: [ {'challenger.username': user.username}, {'challengee.username': user.username}] }, { complete: false }
+               { $or: [ {'challenger.username': user.username}, {'challengee.username': user.username}] }, { status: 1 }
             ]},
             function(err, game) {
 
@@ -862,7 +925,7 @@ io.on('connection', function(socket) {
                      io.in(game.room).emit('opponent left game', opponentUsername);
                   }
 
-                  game.complete = true; // The game is now considered 'finished'
+                  game.status = 2; // The game is now considered 'done'
 
                   game.save(function(err) {
                      if(err) {
