@@ -885,16 +885,11 @@ io.on('connection', function(socket) {
          }
          else if(user) { // No error occurred and the user exists
 
-            // *************
-            // Find a game with this user that is either in progress or pending, we don't want to find 'done' games
-            // and there can't ever be pending and in progress game at the same time
-            // If the game is in progress, do just as is done below
-            // If it's pending clean up the disconnected player and their opponents state, but don't find a winner
-            // Emit a challenge rejected as done in the socket event to update the front-end
-            // Use an if else for this
-            // ************* Edit the below query *************
+            // Find a game where one of the players is the user that disconnected, and that is either in
+            // a pending or in progress state
             Game.findOne({ $and: [
-               { $or: [ {'challenger.username': user.username}, {'challengee.username': user.username}] }, { status: 1 }
+               { $or: [ {'challenger.username': user.username}, {'challengee.username': user.username}] },
+               { $or: [ {status: 0}, {status: 1}] } // game is pending or in progress
             ]},
             function(err, game) {
 
@@ -903,9 +898,9 @@ io.on('connection', function(socket) {
                }
                else if( game ) {
 
-                  console.log('Found game with this user that is still in progress.');
+                  console.log('Found game with this user that is pending or still in progress.');
 
-                  // This user was in a game, disconnect them from the game socket and then clean up their state
+                  // The user was in a game that isn't complete, disconnect them from the game socket and then clean up their state
                   disconnectUser(socket, user, game.room);
 
                   // Need this so we can reset the opponents 'inGame' state
@@ -916,70 +911,127 @@ io.on('connection', function(socket) {
                   // Tell the other user (opponent) that this user left the game, and that they won
                   if( game.challenger.username === user.username ) {
                      opponentUsername = game.challengee.username;
-                     game.winner = opponentUsername;
-                     io.in(game.room).emit('opponent left game', opponentUsername);
                   }
                   else {
                      opponentUsername = game.challenger.username;
-                     game.winner = opponentUsername;
-                     io.in(game.room).emit('opponent left game', opponentUsername);
                   }
 
-                  game.status = 2; // The game is now considered 'done'
 
-                  game.save(function(err) {
-                     if(err) {
-                        console.log('Error saving game.');
-                        // Emit a new event like 'Database error' and end the game on both ends
-                     }
-                     else {
-                        console.log('Stored the winner in the game.');
+                  if( game.status === 0 ) { // game is pending (challenge request not yet accepted or rejected)
 
-                        // Find the opponent in the DB, so that we can set their 'inGame' state to false
-                        User.findOne( {username: opponentUsername}, function(err, opponent) {
+                     console.log('Game is pending.');
 
-                           if(err) {
-                              console.log('Error finding user.');
-                              // Emit error to front-end
-                           }
-                           else if(opponent) { // User exists
+                     // Find the opponent in the DB, so that we can set their 'inGame' state to false
+                     User.findOne( {username: opponentUsername}, function(err, opponent) {
 
-                              console.log('Found opponent: ' + opponent.username);
+                        if(err) {
+                           console.log('Error finding user.');
+                           // Emit error to front-end
+                        }
+                        else if(opponent) { // User exists
 
-                              // Get the socket by its id, and leave the game room
-                              var opponentSocket = io.sockets.connected[opponent.socketID];
-                              opponentSocket.leave(game.room);
+                           console.log('Found opponent: ' + opponent.username);
 
-                              socket.broadcast.emit('user done game', opponent.username);
+                           // Get the socket by its id, and leave the game room
+                           var opponentSocket = io.sockets.connected[opponent.socketID];
+                           opponentSocket.leave(game.room);
 
-                              console.log('Setting opponent as no longer in game...');
-                              opponent.inGame = false;
+                           console.log('Setting opponent as no longer in game...');
+                           opponent.inGame = false;
 
-                              // Save opponent user's state
-                              opponent.save(function(err) {
-                                 if(err) {
-                                    console.log('Error saving opponents in game state.');
-                                 }
-                                 else {
-                                    console.log('Opponent in game state updated.');
-                                 }
-                              });
+                           // Save opponent user's state
+                           opponent.save(function(err) {
+                              if(err) {
+                                 console.log('Error saving opponents in game state.');
+                              }
+                              else {
 
-                           }
-                           else {
-                              console.log('User does not exist.');
-                              // Emit error
-                           }
+                                 console.log('Opponent in game state updated.');
 
-                        });
+                                 console.log('Telling front-end that a challenge was rejected due to disconnect.');
+                                 io.emit('pending challenge rejected', {users: [game.challenger.username, game.challengee.username]});
 
-                     }
-                  });
+                                 console.log('Deleting game from DB...');
+                                 // Remove the game from the DB
+                                 game.remove();
+
+                              }
+                           });
+
+                        }
+                        else {
+                           console.log('User does not exist.');
+                           // Emit error
+                        }
+
+                     });
+
+                  }
+                  else { // 1 = game in progress
+
+                     console.log('Game is curently in progress.');
+
+                     game.winner = opponentUsername;
+                     io.in(game.room).emit('opponent left game', opponentUsername);
+
+                     game.status = 2; // The game is now considered 'done'
+
+                     game.save(function(err) {
+                        if(err) {
+                           console.log('Error saving game.');
+                           // Emit a new event like 'Database error' and end the game on both ends
+                        }
+                        else {
+                           console.log('Stored the winner in the game.');
+
+                           // Find the opponent in the DB, so that we can set their 'inGame' state to false
+                           User.findOne( {username: opponentUsername}, function(err, opponent) {
+
+                              if(err) {
+                                 console.log('Error finding user.');
+                                 // Emit error to front-end
+                              }
+                              else if(opponent) { // User exists
+
+                                 console.log('Found opponent: ' + opponent.username);
+
+                                 // Get the socket by its id, and leave the game room
+                                 var opponentSocket = io.sockets.connected[opponent.socketID];
+                                 opponentSocket.leave(game.room);
+
+                                 socket.broadcast.emit('user done game', opponent.username);
+
+                                 console.log('Setting opponent as no longer in game...');
+                                 opponent.inGame = false;
+
+                                 // Save opponent user's state
+                                 opponent.save(function(err) {
+                                    if(err) {
+                                       console.log('Error saving opponents in game state.');
+                                    }
+                                    else {
+                                       console.log('Opponent in game state updated.');
+                                    }
+                                 });
+
+                              }
+                              else {
+                                 console.log('User does not exist.');
+                                 // Emit error
+                              }
+
+                           });
+
+                        }
+                     });
+
+
+                  }
 
                }
-               else {
+               else { // Couldn't find a game
 
-                  console.log('Could not find a game with this user that is still in progress.');
+                  console.log('Could not find a game with this user that is pending or in progress.');
 
                   // This user's connection to the socket is terminated, clean up their state
                   disconnectUser(socket, user, null);
