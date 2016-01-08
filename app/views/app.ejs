@@ -298,6 +298,22 @@ window.onload = function() {
 
    // **** Onclick/Onsubmit Methods ****
 
+   function leaveGame() {
+
+      console.log('Leave game');
+
+      socket.emit('leave game', {username: cookieUsername, gameID: docCookies.getItem('linesAppGame')});
+
+   }
+
+
+   function restartGame() {
+
+      console.log('Requesting to restart the game.');
+
+   }
+
+
    function acceptChallenge() {
 
       var challenger = $('#challenger-username').text();
@@ -358,6 +374,7 @@ window.onload = function() {
 
       buildBoard();
       createScoreboard(gameData.players);
+      createGameControls();
 
       // Now set the board to display block so it's visible
       $('#gameboard-container').show();
@@ -369,6 +386,18 @@ window.onload = function() {
 
          socket.emit('start game');
       }
+
+   }
+
+   function createGameControls() {
+
+      var gameControlsContainer = "<div class='game-controls-container'><button id='leave-game-but'>Leave game</button>";
+      gameControlsContainer += "<button id='restart-game-but'>Restart game</button></div>";
+
+      $('#gameboard-container').prepend(gameControlsContainer);
+
+      $('#leave-game-but').on('click', leaveGame);
+      $('#restart-game-but').on('click', restartGame);
 
    }
 
