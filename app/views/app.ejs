@@ -302,7 +302,9 @@ window.onload = function() {
 
       console.log('Leave game');
 
-      socket.emit('leave game', {username: cookieUsername, gameID: docCookies.getItem('linesAppGame')});
+      socket.emit('leave game', {gameID: docCookies.getItem('linesAppGame')});
+
+      cleanupBoard();
 
    }
 
@@ -491,6 +493,8 @@ window.onload = function() {
 
       $('.my-turn-indicator').text("");
       $('.my-turn-indicator').css('opacity', '0');
+
+      $('.game-controls-container').remove();
 
       // Hide the game board
       $('#gameboard-container').hide();

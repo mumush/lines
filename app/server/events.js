@@ -650,6 +650,142 @@ io.on('connection', function(socket) {
 
    }
 
+   // Convenience method to return the username of the current user's opponent in a game,
+   // based on the game's challenger and challengee usernames
+   function getOpponentUsername(username, challengerName, challengeeName) {
+
+      if( challengerName === username ) {
+         return challengeeName;
+      }
+      else {
+         return challengerName;
+      }
+
+   }
+
+
+   // LEAVE GAME EVENT
+   // User intentionally leaves the game
+   socket.on('leave game', function(data) {
+
+      console.log('User intentionally left game.');
+
+      // Find user by their socket id
+      User.findOne( {socketID: socket.id}, function(err, user) {
+
+         if(err) {
+            console.log('Error finding user.');
+            // Emit error to front-end
+         }
+         else if(user) { // No error occurred and the user exists
+
+            console.log('Found user: ' + user.username);
+
+            Game.findById(data.gameID, function(err, game) {
+
+               if(err) {
+                  console.log('Error finding game.');
+               }
+               else if(game) {
+
+                  console.log('Found game');
+
+                  // Find opponents username based on game player's usernames
+                  var opponentUsername = getOpponentUsername(user.username, game.challenger.username, game.challengee.username);
+                  console.log('Opponent username: ' + opponentUsername);
+
+                  game.winner = opponentUsername;
+                  game.status = 2; // The game is now considered 'done'
+
+                  game.save(function(err) {
+                     if(err) {
+                        console.log('Error saving game.');
+                        // Emit a new event like 'Database error' and end the game on both ends
+                     }
+                     else {
+
+                        console.log('Saved game state.');
+
+                        // Set user to no longer be in game
+                        user.inGame = false;
+
+                        user.save(function(err) {
+                           if(err) {
+                              console.log('Error saving user.');
+                           }
+                           else {
+
+                              // Tell the opponent that this user left the game, and that they won
+                              socket.broadcast.to(game.room).emit('opponent left game', opponentUsername);
+
+                              // Now leave this user from the game socket room
+                              socket.leave(game.room);
+
+                              // Find the opponent by their username
+                              User.findOne( {username: opponentUsername}, function(err, opponent) {
+
+                                 if(err) {
+                                    console.log('Error finding user.');
+                                    // Emit error to front-end
+                                 }
+                                 else if(opponent) { // User exists
+
+                                    console.log('Found opponent.');
+
+                                    // Get the opponent's socket by its id, and leave the game room
+                                    var opponentSocket = io.sockets.connected[opponent.socketID];
+                                    opponentSocket.leave(game.room);
+
+                                    console.log('Setting opponent as no longer in game...');
+                                    opponent.inGame = false;
+
+                                    // Save opponent user's state
+                                    opponent.save(function(err) {
+                                       if(err) {
+                                          console.log('Error saving opponents in game state.');
+                                       }
+                                       else {
+
+                                          console.log('Opponent in game state updated.');
+
+                                          // Tell all users, including both players, that each player is done a game
+                                          io.sockets.emit('user done game', user.username);
+                                          io.sockets.emit('user done game', opponent.username);
+
+                                       }
+                                    });
+
+                                 }
+                                 else {
+                                    console.log('Opponent does not exist.');
+                                 }
+
+                              }); // end opponent.find
+
+                           }
+                        }); // end user.save
+
+
+                     }
+                  }); // end Game.save
+
+               }
+               else {
+                  console.log('Game does not exist.');
+               }
+
+            }); // end Game.find
+
+         }
+         else {
+            console.log('User does not exist.');
+         }
+
+
+      }); // end User.find
+
+   });
+
 
    // DISCONNECT EVENT
    socket.on('disconnect', function() {
@@ -682,19 +818,9 @@ io.on('connection', function(socket) {
                   // The user was in a game that isn't complete, disconnect them from the game socket and then clean up their state
                   disconnectUser(socket, user, game.room);
 
-                  // Need this so we can reset the opponents 'inGame' state
-                  var opponentUsername;
-
-                  // Figure out if the user that disconnected (this user) is the game's challenger or challengee
-                  // Set the winner of the game to the opponent's username
-                  // Tell the other user (opponent) that this user left the game, and that they won
-                  if( game.challenger.username === user.username ) {
-                     opponentUsername = game.challengee.username;
-                  }
-                  else {
-                     opponentUsername = game.challenger.username;
-                  }
-
+                  // Find opponents username based on game player's usernames
+                  var opponentUsername = getOpponentUsername(user.username, game.challenger.username, game.challengee.username);
+                  console.log('Opponent username: ' + opponentUsername);
 
                   if( game.status === 0 ) { // game is pending (challenge request not yet accepted or rejected)
 
