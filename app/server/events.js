@@ -762,6 +762,59 @@ io.on('connection', function(socket) {
    });
 
 
+   // REJECT RESTART GAME EVENT
+   socket.on('reject restart game', function(data) {
+
+      console.log(data.username + ' rejected the request to restart game: ' + data.gameID);
+
+      // Tell the opponent that their restart request was denied
+
+      Game.findById(data.gameID, function(err, game) {
+
+         if(err) {
+            console.log('Error finding game.');
+         }
+         else if(game) {
+
+            console.log('Found game.');
+
+            // Get the opponent's username
+            var opponentUsername = getOpponentUsername(data.username, game.challenger.username, game.challengee.username);
+
+            // Find the opponent and get their socket ID
+            User.findOne( {username: opponentUsername}, function(err, opponent) {
+
+               if(err) {
+                  console.log('Error finding user.');
+                  // Emit error to front-end
+               }
+               else if(opponent) { // User exists
+
+                  console.log('Found opponent.');
+
+                  // Tell the opponent that their restart request was rejected
+                  socket.broadcast.to(opponent.socketID).emit('restart request rejected', opponent.username);
+
+               }
+               else {
+                  console.log('Opponent does not exist.');
+               }
+
+            });
+
+         }
+         else {
+            console.log('Game with supplied ID does not exist');
+         }
+
+      });
+
+
+
+
+   });
+
+
    // LEAVE GAME EVENT
    // User intentionally leaves the game
    socket.on('leave game', function(data) {

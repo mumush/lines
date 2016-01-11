@@ -86,15 +86,6 @@ window.onload = function() {
       displayChallengeModal(challenger);
    });
 
-   // When the current game between this and another player has been 'restarted'
-   socket.on('initiate restart game', function(opponentUsername) {
-      console.log('Initiating restart game!');
-
-      // Reset the board to its 'starting state'
-      resetBoard();
-
-   });
-
    // When the player's opponent has requested to restart the game
    socket.on('prompt restart game', function(opponentUsername) {
       console.log(opponentUsername + ' has requested to restart the game.');
@@ -106,6 +97,25 @@ window.onload = function() {
 
       // Create and show prompt similar to the accept/reject challenge scenario
       displayRestartGameModal(opponentUsername);
+
+   });
+
+   // When the current game between this and another player has been 'restarted'
+   socket.on('initiate restart game', function(opponentUsername) {
+      console.log('Initiating restart game!');
+
+      // Reset the board to its 'starting state'
+      resetBoard();
+
+   });
+
+   // When the opposing player rejects this users request to restart the game
+   socket.on('restart request rejected', function(opponentUsername) {
+      console.log(opponentUsername + ' rejected your request to restart the game.');
+
+      // Re-enable the restart button
+      $('#restart-game-but').on('click', requestRestartGame);
+      $('#restart-game-but').prop('disabled', false);
 
    });
 
@@ -343,7 +353,15 @@ window.onload = function() {
 
    function rejectRestartGame() {
 
-      console.log('Rejected request to restart game.');
+      console.log('Rejecting request to restart game.');
+
+      socket.emit('reject restart game', {gameID: docCookies.getItem('linesAppGame'), username: cookieUsername});
+
+      $('#restart-game-modal').remove();
+
+      // Re-enable the restart button
+      $('#restart-game-but').on('click', requestRestartGame);
+      $('#restart-game-but').prop('disabled', false);
 
    }
 
