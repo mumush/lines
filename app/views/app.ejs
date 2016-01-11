@@ -86,6 +86,29 @@ window.onload = function() {
       displayChallengeModal(challenger);
    });
 
+   // When the current game between this and another player has been 'restarted'
+   socket.on('initiate restart game', function(opponentUsername) {
+      console.log('Initiating restart game!');
+
+      // Reset the board to its 'starting state'
+      resetBoard();
+
+   });
+
+   // When the player's opponent has requested to restart the game
+   socket.on('prompt restart game', function(opponentUsername) {
+      console.log(opponentUsername + ' has requested to restart the game.');
+
+      // Remove the event listener from the restart game button and disable it
+      // So this user can't make another restart request
+      $('#restart-game-but').off('click', requestRestartGame);
+      $('#restart-game-but').prop('disabled', true);
+
+      // Create and show prompt similar to the accept/reject challenge scenario
+      displayRestartGameModal(opponentUsername);
+
+   });
+
    // When the player's opponent leaves the game (disconnected or intentionally left)
    socket.on('opponent left game', function(winner) {
       console.log('Your opponent left the game.  The winner is: ' + winner);
@@ -118,7 +141,6 @@ window.onload = function() {
 
          var lineToUpdate = getLineByAttrs(data.opponentsMove);
          lineToUpdate.css('stroke', 'red');
-         lineToUpdate.css('stroke-width', '6px');
 
          // Update the opponents score (if necessary)
          updateScore(data.opponentsScore);
@@ -137,7 +159,6 @@ window.onload = function() {
       // Update the line
       var lineToUpdate = getLineByAttrs(data.line);
       lineToUpdate.css('stroke', 'green');
-      lineToUpdate.css('stroke-width', '6px');
 
       // Update our score (if necessary)
       updateScore(data.updateScore);
@@ -295,8 +316,48 @@ window.onload = function() {
       }
    }
 
+   function displayRestartGameModal(opponent) {
+
+      var restartModal = "<div id='restart-game-modal'><p><span class='opponent-username'>" + opponent + "</span> requested to restart the game.  What would you like to do?</p>";
+      restartModal += "<div class='restart-action-container'><button id='accept-restart-but'>Restart Game</button><button id='reject-restart-but'>Ignore</button></div></div>";
+
+      $(document.body).prepend(restartModal);
+
+      $('#accept-restart-but').on('click', acceptRestartGame);
+      $('#reject-restart-but').on('click', rejectRestartGame);
+
+   }
+
 
    // **** Onclick/Onsubmit Methods ****
+
+   function acceptRestartGame() {
+
+      console.log('Accepted request to restart game!');
+
+      socket.emit('accept restart game', {gameID: docCookies.getItem('linesAppGame'), username: cookieUsername});
+
+      $('#restart-game-modal').remove();
+
+   }
+
+   function rejectRestartGame() {
+
+      console.log('Rejected request to restart game.');
+
+   }
+
+   function requestRestartGame() {
+
+      console.log('Requesting to restart the game.');
+
+      // Remove the event listener from the restart game button and disable it
+      $('#restart-game-but').off('click', requestRestartGame);
+      $('#restart-game-but').prop('disabled', true);
+
+      socket.emit('request restart game', {gameID: docCookies.getItem('linesAppGame'), username: cookieUsername});
+
+   }
 
    function leaveGame() {
 
@@ -307,14 +368,6 @@ window.onload = function() {
       cleanupBoard();
 
    }
-
-
-   function restartGame() {
-
-      console.log('Requesting to restart the game.');
-
-   }
-
 
    function acceptChallenge() {
 
@@ -393,13 +446,13 @@ window.onload = function() {
 
    function createGameControls() {
 
-      var gameControlsContainer = "<div class='game-controls-container'><button id='leave-game-but'>Leave game</button>";
+      var gameControlsContainer = "<div id='game-controls-container'><button id='leave-game-but'>Leave game</button>";
       gameControlsContainer += "<button id='restart-game-but'>Restart game</button></div>";
 
       $('#gameboard-container').prepend(gameControlsContainer);
 
       $('#leave-game-but').on('click', leaveGame);
-      $('#restart-game-but').on('click', restartGame);
+      $('#restart-game-but').on('click', requestRestartGame);
 
    }
 
@@ -477,6 +530,29 @@ window.onload = function() {
          }
          vY = vY + 2;
       }
+   }
+
+   function resetBoard() {
+
+      // Remove click listeners from all lines
+      toggleLineListeners(false);
+
+      // Reset the stroke color of all lines
+      $('.gameboard-line').each(function() {
+         $(this).css('stroke', 'pink');
+      });
+
+      // Reset the scores for both players
+      $('.my-score-container .score').text("0");
+      $('.opponent-score-container .score').text("0");
+
+      // Initialize both players' turns to be 'opponents turn' until a first turn has been sent
+      toggleTurnIndicator(false);
+
+      // Re-enable the restart button
+      $('#restart-game-but').on('click', requestRestartGame);
+      $('#restart-game-but').prop('disabled', false);
+
    }
 
    function cleanupBoard() {

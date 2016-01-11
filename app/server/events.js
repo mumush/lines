@@ -663,6 +663,104 @@ io.on('connection', function(socket) {
 
    }
 
+   // REQUEST RESTART GAME EVENT
+   socket.on('request restart game', function(data) {
+
+      console.log(data.username + ' requested to restart their game.');
+
+      Game.findById(data.gameID, function(err, game) {
+
+         if(err) {
+            console.log('Error finding game.');
+         }
+         else if(game) {
+
+            console.log('Found game');
+
+            // Find opponent's username in game based on data.username
+            var opponentUsername = getOpponentUsername(data.username, game.challenger.username, game.challengee.username);
+
+            // Now find the opponent
+            User.findOne( {username: opponentUsername}, function(err, user) {
+
+               if(err) {
+                  console.log('Error finding user.');
+               }
+               else if(user) { // No error occurred and the user exists
+
+                  console.log('Found opponent.  Emitting prompt restart game event to opponents socket');
+
+                  // Emit to the opponent's socket
+                  socket.broadcast.to(user.socketID).emit('prompt restart game', data.username);
+
+               }
+               else {
+                  console.log('User does not exist.');
+               }
+
+            });
+
+
+         }
+         else {
+            console.log('Game does not exist.');
+         }
+
+      });
+
+
+
+   });
+
+
+   // ACCEPT RESTART GAME EVENT
+   socket.on('accept restart game', function(data) {
+
+      console.log(data.username + ' accepted request to restart game with ID: ' + data.gameID);
+
+      Game.findById(data.gameID, function(err, game) {
+
+         if(err) {
+            console.log('Error finding game.');
+         }
+         else if(game) {
+
+            console.log('Found game.');
+
+            // Clear all the moves
+            game.moves = [];
+
+            // Reset both players' scores
+            game.challenger.score = 0;
+            game.challengee.score = 0;
+
+            // Save the game
+            game.save(function(err) {
+               if(err) {
+                  console.log('Error saving game.');
+               }
+               else {
+
+                  console.log('Saved game.');
+
+                  // Tell both players in the game room that they back-end has been reset, and they should update the front
+                  io.in(game.room).emit('initiate restart game');
+
+                  // Now tell the player that just accepted the game restart that it's their turn (they get to go first)
+                  socket.emit('my turn', {opponentsMove: null});
+
+               }
+            });
+
+         }
+         else {
+            console.log('Game with supplied ID does not exist');
+         }
+
+      });
+
+   });
+
 
    // LEAVE GAME EVENT
    // User intentionally leaves the game
