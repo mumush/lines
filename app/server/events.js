@@ -900,8 +900,8 @@ io.on('connection', function(socket) {
                                           console.log('Opponent in game state updated.');
 
                                           // Tell all users, including both players, that each player is done a game
-                                          io.sockets.emit('user done game', user.username);
-                                          io.sockets.emit('user done game', opponent.username);
+                                          io.emit('user done game', user.username);
+                                          io.emit('user done game', opponent.username);
 
                                        }
                                     });
@@ -1055,7 +1055,8 @@ io.on('connection', function(socket) {
                                  var opponentSocket = io.sockets.connected[opponent.socketID];
                                  opponentSocket.leave(game.room);
 
-                                 socket.broadcast.emit('user done game', opponent.username);
+                                 // Tell all users that this user is finished their game
+                                 io.emit('user done game', opponent.username);
 
                                  console.log('Setting opponent as no longer in game...');
                                  opponent.inGame = false;

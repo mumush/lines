@@ -623,6 +623,11 @@ window.onload = function() {
 
       $('#game-controls-container').remove();
 
+      // Edge case: Your opponent requested a restart before the game ended, and the modal is still visible
+      if( $('#restart-game-modal').length > 0 ) {
+         $('#restart-game-modal').remove();
+      }
+
       // Hide the game board
       $('#gameboard-container').hide();
 
