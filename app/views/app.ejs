@@ -74,7 +74,7 @@ window.onload = function() {
 
    // When another user finishes a game, update them on the list of users
    socket.on('user done game', function(username) {
-      appendChallengeButton(username);
+      enableChallengeButton(username);
       console.log(username + ' done game.');
    });
 
@@ -215,18 +215,27 @@ window.onload = function() {
       newUserItem.attr('id', ('user-' + user.username));
       newUserItem.text(user.username);
 
-      // If the user is in a game, we don't want to create a challenge
-      if( user.inGame == false ) {
+      var challengeUserBut = $('<button>');
+      challengeUserBut.text('Challenge');
 
-         var challengeUserBut = $('<button>');
+      if( user.inGame == true ) {
+
+         // Disable the button
+         $(challengeUserBut).prop('disabled', true);
+
+      }
+      else { // User is not in a game
+
+         // Give the button an event listener to allow a challenge request
          var eventData = {username: user.username, challengeUserBut: challengeUserBut};
          challengeUserBut.on('click', eventData, function(e){ challengeUser(e.data.username, e.data.challengeUserBut); });
-         challengeUserBut.text('Challenge');
-
-         newUserItem.append(challengeUserBut);
 
       }
 
+      // Add the button to the user list item
+      newUserItem.append(challengeUserBut);
+
+      // Add the user list item to the top of the list
       $('#online-users-list').prepend(newUserItem);
    }
 
@@ -243,17 +252,24 @@ window.onload = function() {
          var attrSelector = "#user-" + users[i];
          var userListItem = $(attrSelector);
 
+         var challengeBut = userListItem.find('button');
+
          if( userListItem.length != 0 && areInGame ) { // If this user is on the DOM and they're in a game
-            userListItem.find('button').remove();
+
+            // Remove the event listener from the challenge button and disable it
+            $(challengeBut).off();
+            $(challengeBut).prop('disabled', true);
+
          }
          else if( userListItem.length != 0 && !areInGame ) { // If this user is on the DOM and they're not in a game
-            // Create a challenge button and append it to the users list item
-            var challengeUserBut = $('<button>');
-            var eventData = {username: users[i], challengeUserBut: challengeUserBut};
-            challengeUserBut.on('click', eventData, function(e){ challengeUser(e.data.username, e.data.challengeUserBut); });
-            challengeUserBut.text('Challenge');
 
-            userListItem.append(challengeUserBut);
+            // Create a 'click' handler for the button
+            var eventData = {username: users[i], challengeBut: challengeBut};
+            challengeBut.on('click', eventData, function(e){ challengeUser(e.data.username, e.data.challengeBut); });
+
+            // Re-enable the button
+            $(challengeBut).prop('disabled', false);
+
          }
 
       } // End for loop
@@ -275,18 +291,23 @@ window.onload = function() {
 
    }
 
-   function appendChallengeButton(username) {
+   function enableChallengeButton(username) {
 
       var attrSelector = "#user-" + username;
       var userListItem = $(attrSelector);
 
-      if( userListItem.length != 0 ) { // If this user is on the DOM
-         var challengeUserBut = $('<button>');
-         var eventData = {username: username, challengeUserBut: challengeUserBut};
-         challengeUserBut.on('click', eventData, function(e){ challengeUser(e.data.username, e.data.challengeUserBut); });
-         challengeUserBut.text('Challenge');
+      var challengeBut = userListItem.find('button');
 
-         userListItem.append(challengeUserBut);
+      // If this user is on the DOM, and their challenge button is as well
+      if( userListItem.length != 0 && challengeBut.length != 0 ) {
+
+         // Create a 'click' handler for the button
+         var eventData = {username: username, challengeBut: challengeBut};
+         challengeBut.on('click', eventData, function(e){ challengeUser(e.data.username, e.data.challengeBut); });
+
+         // Re-enable the button
+         $(challengeBut).prop('disabled', false);
+
       }
 
    }
@@ -588,7 +609,7 @@ window.onload = function() {
       $('.my-turn-indicator').text("");
       $('.my-turn-indicator').css('opacity', '0');
 
-      $('.game-controls-container').remove();
+      $('#game-controls-container').remove();
 
       // Hide the game board
       $('#gameboard-container').hide();
