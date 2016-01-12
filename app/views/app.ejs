@@ -121,8 +121,14 @@ window.onload = function() {
 
    // When the player's opponent leaves the game (disconnected or intentionally left)
    socket.on('opponent left game', function(winner) {
+
       console.log('Your opponent left the game.  The winner is: ' + winner);
+
       cleanupBoard();
+
+      // Remove the prior gameID from the cookie
+      docCookies.removeItem('linesAppGame');
+
    });
 
    // When the last move in the game has been made
@@ -133,6 +139,9 @@ window.onload = function() {
       showGameOverModal(winner);
 
       cleanupBoard();
+
+      // Remove the prior gameID from the cookie
+      docCookies.removeItem('linesAppGame');
 
    });
 
@@ -405,6 +414,9 @@ window.onload = function() {
       socket.emit('leave game', {gameID: docCookies.getItem('linesAppGame')});
 
       cleanupBoard();
+
+      // Remove the prior gameID from the cookie
+      docCookies.removeItem('linesAppGame');
 
    }
 
