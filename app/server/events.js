@@ -23,6 +23,18 @@ io.on('connection', function(socket) {
                }
                socket.broadcast.emit('user online', user);
                console.log(data.username + ' is online.');
+
+               User.find({ username: { $ne: user.username }, isOnline: true }, '-_id username inGame', function(err, users) {
+
+                  if(err) { // Error occurred
+                     console.log('Error retrieving all users.');
+                  }
+                  else {
+                     socket.emit('current online users', users);
+                  }
+               });
+
+
             });
          }
 

@@ -128,15 +128,9 @@ app.post('/login', authenticate, function(req, res) {
 });
 
 app.get('/', authenticate, function(req, res) {
-   User.find({ username: { $ne: req.cookies.linesAppUser }, isOnline: true }, '-_id username inGame', function(err, users) { // isOnline: true
 
-      if(err) { // Error occurred
-         console.log('Error retrieving all users.');
-      }
-      else {
-         res.render( 'base', {title: 'Home', partial: 'index', data: {users: users} } );
-      }
-   });
+   res.render( 'base', {title: 'Home', partial: 'index', data: null } );
+
 });
 
 

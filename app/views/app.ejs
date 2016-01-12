@@ -11,23 +11,24 @@ window.onload = function() {
    console.log('Client Token: ' + cookieToken);
    console.log('Client Username: ' + cookieUsername);
 
+   initChat();
 
    // **** Initialize Socket IO ****
 
    var socket = io(); // Default to connect to host that serves page
 
-
-   // **** Initialize Online Users & Chat ****
-
-   var onlineUsers = <%- JSON.stringify(users) %>; // 'users' passed in via EJS
-
-   init(onlineUsers);
-
-
    // **** Start Socket IO Events ****
 
-   // Immediately emit that user is online
+   // Immediately emit that this user is online
    socket.emit('go online', {username: cookieUsername});
+
+   // When the server marks us as 'online' - Received in response to emitting the above 'go online'
+   socket.on('current online users', function(users) {
+      // Add all users that are currently online to the list of users
+      for( var i=0; i<users.length; i++ ) {
+         addOnlineUser(users[i]);
+      }
+   });
 
    // When a new user goes online
    socket.on('user online', function(user) {
@@ -200,12 +201,7 @@ window.onload = function() {
 
    // **** DOM Methods ****
 
-   function init(users) {
-
-      // Add all users that are currently online to the list of users
-      for( var i=0; i<users.length; i++ ) {
-         addOnlineUser(users[i]);
-      }
+   function initChat() {
 
       // Set the submit handler for the form
       $('#compose-message-form').on('submit', function(event) {
