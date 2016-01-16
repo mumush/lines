@@ -311,7 +311,7 @@ window.onload = function() {
       // Create a date object based on the ISO date string
       var date = new Date(timestamp);
 
-      // Take advantage of locales
+      // Take advantage of locales (SHOWS TIMEZONE IN SAFARI)
       console.log('Time: ' + date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
       console.log('Date: ' + date.toLocaleDateString([]));
 
