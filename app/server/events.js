@@ -43,7 +43,10 @@ io.on('connection', function(socket) {
                      }
                      else {
 
-                        Message.find().sort({timestamp: 1}).find(function(err, messages){
+                        // Find the 20 most recent messages and return them
+                        var messageQuery = Message.find().sort('timestamp').limit(20);
+
+                        messageQuery.find(function(err, messages) {
 
                            if(err) { // Error occurred
                               console.log('Error retrieving messages.');
