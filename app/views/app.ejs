@@ -11,8 +11,6 @@ window.onload = function() {
    console.log('Client Token: ' + cookieToken);
    console.log('Client Username: ' + cookieUsername);
 
-   initChat();
-
    // **** Initialize Socket IO ****
 
    var socket = io(); // Default to connect to host that serves page
@@ -24,6 +22,10 @@ window.onload = function() {
 
    // When the server marks us as 'online' - Received in response to emitting the above 'go online'
    socket.on('current online users', function(users) {
+
+      // Now initialize the chat (we're officially online now)
+      initChat();
+
       // Add all users that are currently online to the list of users
       for( var i=0; i<users.length; i++ ) {
          addOnlineUser(users[i]);

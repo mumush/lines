@@ -14,29 +14,44 @@ io.on('connection', function(socket) {
 
       User.findOne( {username: data.username}, function(err, user) {
 
-         if(!err && user) { // No error occurred and the user exists
-            user.isOnline = true;
-            user.socketID = socket.id; // store the connected socket id so we can use it later when user disconnects
+         if(err) {
+            console.log('Error finding user.');
+         }
+         else if(user) {
+
+            console.log('Found user.');
+
+            user.isOnline = true; // Mark user as online
+            user.socketID = socket.id; // Store the connected socket id so we can use it later when user disconnects
+
             user.save(function(err) {
                if(err) {
-                  return;
+                  console.log('Error saving user.');
                }
-               socket.broadcast.emit('user online', user);
-               console.log(data.username + ' is online.');
+               else {
 
-               User.find({ username: { $ne: user.username }, isOnline: true }, '-_id username inGame', function(err, users) {
+                  // Tell all other users that this user is now online
+                  socket.broadcast.emit('user online', user);
+                  console.log(data.username + ' is online.');
 
-                  if(err) { // Error occurred
-                     console.log('Error retrieving all users.');
-                  }
-                  else {
-                     socket.emit('current online users', users);
-                  }
-               });
+                  // Find all other users that are online
+                  User.find({ username: { $ne: user.username }, isOnline: true }, '-_id username inGame', function(err, users) {
 
-
+                     if(err) { // Error occurred
+                        console.log('Error retrieving all other online users.');
+                     }
+                     else {
+                        socket.emit('current online users', users);
+                     }
+                  });
+               }
             });
+
          }
+         else {
+            console.log('User does not exist.');
+         }
+
 
       });
 
