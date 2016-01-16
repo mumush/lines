@@ -1,5 +1,6 @@
 var User = require('./models/user');
 var Game = require('./models/game');
+var Message = require('./models/message');
 
 module.exports = function(io, MAX_GAME_MOVES) {
 
@@ -41,11 +42,26 @@ io.on('connection', function(socket) {
                         console.log('Error retrieving all other online users.');
                      }
                      else {
-                        socket.emit('current online users', users);
+
+                        // Find and return the 5 most recent messages added to the DB
+                        Message.find({}, function(err, messages) {
+
+                           if(err) { // Error occurred
+                              console.log('Error retrieving messages.');
+                           }
+                           else {
+                              // **** Change the name of this event
+                              socket.emit('now online data', {users: users, messages: messages});
+                           }
+
+                        }); // End Message.find
+
                      }
-                  });
+
+                  }); // End User.find
                }
-            });
+
+            }); // End User.save
 
          }
          else {
@@ -61,11 +77,31 @@ io.on('connection', function(socket) {
    // SEND CHAT MESSAGE EVENT -> client sent a message, emit to all sockets
    socket.on('send chat message', function(data) {
       console.log(data.sender + ' says: ' + data.body);
+
       // Remove special characters
       var escapedSender = ((data.sender).replace(/[^\w\s]/gi, '')).trim();
       var escapedBody = ((data.body).replace(/[^\w\s,'-.?!]/gi, '')).trim(); // Here allow punctuation
 
-      io.emit('new chat message', {sender: escapedSender, body: escapedBody});
+      // Create new Message object to be added to DB
+      var newMessage = new Message({
+         sender: escapedSender,
+         body: escapedBody
+      });
+
+      // Save the new message
+      newMessage.save(function(err, message) {
+         if(err) {
+            console.log('Error saving message.');
+         }
+         else {
+            console.log('Saved message to database.');
+
+            // Tell all users that there is a new message
+            io.emit('new chat message', {sender: message.sender, body: message.body, timestamp: message.timestamp});
+
+         }
+
+      });
 
    });
 

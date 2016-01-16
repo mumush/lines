@@ -21,15 +21,21 @@ window.onload = function() {
    socket.emit('go online', {username: cookieUsername});
 
    // When the server marks us as 'online' - Received in response to emitting the above 'go online'
-   socket.on('current online users', function(users) {
-
-      // Now initialize the chat (we're officially online now)
-      initChat();
+   socket.on('now online data', function(data) {
 
       // Add all users that are currently online to the list of users
-      for( var i=0; i<users.length; i++ ) {
-         addOnlineUser(users[i]);
+      for( var i=0; i<data.users.length; i++ ) {
+         addOnlineUser(data.users[i]);
       }
+
+      // Add each existing message to the list of messages
+      for( var i=0; i<data.messages.length; i++ ) {
+         appendChatMessage(data.messages[i]);
+      }
+
+      // Now initialize the chat
+      initChat();
+
    });
 
    // When a new user goes online
@@ -46,7 +52,7 @@ window.onload = function() {
 
    // When a user has sent a chat message
    socket.on('new chat message', function(message) {
-      console.log(message.sender + ' says: ' + message.body);
+      console.log(message.sender + ' says: ' + message.body + ' | ' + message.timestamp);
       appendChatMessage(message);
    });
 
@@ -286,7 +292,6 @@ window.onload = function() {
    function appendChatMessage(message) {
 
       // This is either our message, or someone else's
-
       if( message.sender === cookieUsername ) { // It's our message, make it blue
          var messageClass = "my-message";
       }
@@ -294,7 +299,36 @@ window.onload = function() {
          var messageClass = "not-my-message";
       }
 
-      $('#messages-list').append($("<li class='message " + messageClass + "'><span class='sender'>" + message.sender + "</span><span class='body'>" + message.body + "</span></li>"));
+      // Format the timestamp ISO string and return an object containing the date and time to display
+      var dateObj = getFormattedDateObject(message.timestamp);
+
+      $('#messages-list').append($("<li class='message " + messageClass + "'><span class='sender'>" + message.sender + "</span> <span class='body'>" + message.body + "</span>" + " | <span class='dateTime'>" + dateObj.date + " ~ " + dateObj.time + "</span></li>"));
+
+   }
+
+   function getFormattedDateObject(timestamp) {
+
+      // Create a date object based on the ISO date string
+      var date = new Date(timestamp);
+
+      // Take advantage of locales
+      console.log('Time: ' + date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
+      console.log('Date: ' + date.toLocaleDateString([]));
+
+      // Use empty array for first param to use default (browser-decided) locale
+      var timeString = date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+
+      // Show 'today' if the timestamp date matches today's date
+      var today = new Date();
+
+      if( today.toDateString() == date.toDateString() ) {
+         return { date: 'Today', time: timeString };
+      }
+      else {
+         var dateString = date.toLocaleDateString([]);
+         return { date: dateString, time: timeString };
+      }
+
 
    }
 

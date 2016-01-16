@@ -135,9 +135,10 @@ app.get('/', authenticate, function(req, res) {
 
 app.get('/logout', function(req, res) {
 
-   // Clear both the token and the username from user's cookies
+   // Clear the token, username, and the gameID cookie if it exists (as a precaution)
    res.clearCookie('linesApp');
    res.clearCookie('linesAppUser');
+   res.clearCookie('linesAppGame');
 
    res.redirect('/login');
 
