@@ -133,6 +133,15 @@ app.get('/', authenticate, function(req, res) {
 
 });
 
+app.get('/logout', function(req, res) {
+
+   // Clear both the token and the username from user's cookies
+   res.clearCookie('linesApp');
+   res.clearCookie('linesAppUser');
+
+   res.redirect('/login');
+
+});
 
 // Middleware Function
 
