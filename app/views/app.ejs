@@ -312,8 +312,8 @@ window.onload = function() {
       var date = new Date(timestamp);
 
       // Take advantage of locales (SHOWS TIMEZONE IN SAFARI)
-      console.log('Time: ' + date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
-      console.log('Date: ' + date.toLocaleDateString([]));
+      //console.log('Time: ' + date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
+      //console.log('Date: ' + date.toLocaleDateString([]));
 
       // Use empty array for first param to use default (browser-decided) locale
       var timeString = date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});

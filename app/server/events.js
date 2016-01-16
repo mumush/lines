@@ -43,18 +43,17 @@ io.on('connection', function(socket) {
                      }
                      else {
 
-                        // Find and return the 5 most recent messages added to the DB
-                        Message.find({}, function(err, messages) {
+                        Message.find().sort({timestamp: 1}).find(function(err, messages){
 
                            if(err) { // Error occurred
                               console.log('Error retrieving messages.');
                            }
                            else {
-                              // **** Change the name of this event
+                              // Send this socket all of the online users and the most recent messages
                               socket.emit('now online data', {users: users, messages: messages});
                            }
 
-                        }); // End Message.find
+                        });
 
                      }
 
