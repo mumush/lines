@@ -7,6 +7,12 @@
 
 }
 
+.db-error-modal {
+
+   background: red;
+
+}
+
 #challenge-modal {
 
    background: yellow;

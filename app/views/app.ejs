@@ -56,6 +56,15 @@ window.onload = function() {
       appendChatMessage(message);
    });
 
+   // When a query to the db returns an error
+   socket.on('db error', function() {
+      console.log('Database Error!');
+
+      // Show a modal with the error before sending the user back to the login route
+      showErrorModal();
+
+   });
+
    // **** Socket IO Game Events ****
 
    socket.on('initialize game', function(data) {
@@ -769,6 +778,21 @@ window.onload = function() {
       $(document.body).prepend(gameOverModal);
 
       // Add an 'x' button to the modal as well as a close button
+
+   }
+
+   function showErrorModal() {
+
+      var errorModal = "<div class='db-error-modal'><h3 class='errorHeader'>Uh oh!</h3><p class='errorBody'>";
+      errorModal += "Unfortunately we've run into some technical issues, and we're working on it! In a few seconds you'll be redirected to the login page.  We sincerely apologize for the inconvenience - check back soon.</p></div>";
+
+      $(document.body).prepend(errorModal);
+
+      // After a slight delay, redirect to the 'logout' route (handled on the back-end)
+      // This will remove all cookies, then redirect to the login route
+      setTimeout(function() {
+         window.location.replace('/logout');
+      }, 5000);
 
    }
 

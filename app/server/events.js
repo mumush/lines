@@ -17,6 +17,7 @@ io.on('connection', function(socket) {
 
          if(err) {
             console.log('Error finding user.');
+            socket.emit('db error');
          }
          else if(user) {
 
@@ -28,6 +29,7 @@ io.on('connection', function(socket) {
             user.save(function(err) {
                if(err) {
                   console.log('Error saving user.');
+                  socket.emit('db error');
                }
                else {
 
@@ -40,6 +42,7 @@ io.on('connection', function(socket) {
 
                      if(err) { // Error occurred
                         console.log('Error retrieving all other online users.');
+                        socket.emit('db error');
                      }
                      else {
 
@@ -50,6 +53,7 @@ io.on('connection', function(socket) {
 
                            if(err) { // Error occurred
                               console.log('Error retrieving messages.');
+                              socket.emit('db error');
                            }
                            else {
                               // Send this socket all of the online users and the most recent messages
@@ -68,6 +72,7 @@ io.on('connection', function(socket) {
          }
          else {
             console.log('User does not exist.');
+            socket.emit('db error');
          }
 
 
@@ -94,13 +99,13 @@ io.on('connection', function(socket) {
       newMessage.save(function(err, message) {
          if(err) {
             console.log('Error saving message.');
+            socket.emit('db error');
          }
          else {
             console.log('Saved message to database.');
 
             // Tell all users that there is a new message
             io.emit('new chat message', {sender: message.sender, body: message.body, timestamp: message.timestamp});
-
          }
 
       });
